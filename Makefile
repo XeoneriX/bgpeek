@@ -3,7 +3,7 @@ DOCKER_COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install lint format format-check mypy test test-cov audit bandit check secure dev dev-down dev-logs dev-rebuild clean
+.PHONY: help install lint format format-check mypy test test-cov audit bandit check secure dev dev-down dev-logs dev-rebuild migrate clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -50,6 +50,9 @@ dev-logs: ## Tail bgpeek logs
 
 dev-rebuild: ## Rebuild images from scratch and restart stack
 	$(DOCKER_COMPOSE) build --no-cache && $(DOCKER_COMPOSE) up -d
+
+migrate: ## Apply database migrations against $BGPEEK_DATABASE_URL (or default)
+	$(UV) run bgpeek-migrate
 
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov dist

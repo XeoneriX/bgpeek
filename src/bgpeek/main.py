@@ -10,7 +10,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from bgpeek import __version__
+from bgpeek.api import devices as devices_api
 from bgpeek.config import settings
+from bgpeek.db.pool import close_pool, init_pool
 
 log = structlog.get_logger()
 
@@ -21,7 +23,9 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Application startup and shutdown hooks."""
     log.info("bgpeek starting", version=__version__, host=settings.host, port=settings.port)
+    await init_pool(settings.database_url)
     yield
+    await close_pool()
     log.info("bgpeek shutting down")
 
 
@@ -37,6 +41,8 @@ app.mount(
     StaticFiles(directory=str(settings.static_dir)),
     name="static",
 )
+
+app.include_router(devices_api.router)
 
 
 @app.get("/api/health", response_class=JSONResponse)

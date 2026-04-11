@@ -36,6 +36,7 @@ dependencies = [
     "httpx>=0.28.0",
     # Database
     "asyncpg>=0.30.0",
+    "yoyo-migrations>=9.0.0",         # SQL migrations runner
     # Cache
     "redis>=5.2.0",
     # SSH for routers
@@ -57,6 +58,8 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
+    "testcontainers[postgres]>=4.9.0",  # ephemeral postgres for db tests
+    "psycopg[binary]>=3.2.0",           # required by testcontainers' postgres health check
     # Lint / format / types
     "ruff>=0.8.0",
     "mypy>=1.13.0",
@@ -74,6 +77,7 @@ e2e = [
 
 [project.scripts]
 bgpeek = "bgpeek.main:run"
+bgpeek-migrate = "bgpeek.db.migrate:main"
 
 [project.urls]
 Homepage = "https://github.com/xeonerix/bgpeek"
@@ -134,6 +138,11 @@ strict = true
 warn_unused_ignores = true
 warn_return_any = true
 exclude = ["tests/e2e"]
+
+# Third-party libraries without type stubs.
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*"]
+ignore_missing_imports = true
 
 # ===== pytest =====
 [tool.pytest.ini_options]
