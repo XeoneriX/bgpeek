@@ -35,6 +35,7 @@ class QueryResponse(BaseModel):
     raw_output: str
     filtered_output: str
     runtime_ms: int
+    cached: bool = False
 
 
 class QueryError(BaseModel):

@@ -10,9 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from bgpeek import __version__
+from bgpeek.api import auth as auth_api
 from bgpeek.api import devices as devices_api
 from bgpeek.api import query as query_api
 from bgpeek.config import settings
+from bgpeek.core.redis import close_redis, init_redis
 from bgpeek.db import devices as device_crud
 from bgpeek.db.pool import close_pool, get_pool, init_pool
 
@@ -26,7 +28,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Application startup and shutdown hooks."""
     log.info("bgpeek starting", version=__version__, host=settings.host, port=settings.port)
     await init_pool(settings.database_url)
+    try:
+        await init_redis(settings.redis_url)
+    except Exception:
+        log.warning("redis unavailable — cache disabled", exc_info=True)
     yield
+    await close_redis()
     await close_pool()
     log.info("bgpeek shutting down")
 
@@ -44,6 +51,7 @@ app.mount(
     name="static",
 )
 
+app.include_router(auth_api.router)
 app.include_router(devices_api.router)
 app.include_router(query_api.router)
 

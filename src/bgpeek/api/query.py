@@ -2,27 +2,36 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
+from bgpeek.core.auth import optional_api_key, require_api_key
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.validators import TargetValidationError
 from bgpeek.models.query import QueryError, QueryRequest, QueryResponse, QueryType
+from bgpeek.models.user import User
 
 router = APIRouter(tags=["query"])
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
 @router.post("/api/query", response_model=QueryResponse)
-async def api_query(request: Request, body: QueryRequest) -> QueryResponse:
+async def api_query(
+    request: Request,
+    body: QueryRequest,
+    caller: User = Depends(require_api_key),  # noqa: B008
+) -> QueryResponse:
     """Execute a looking glass query (JSON API)."""
     try:
         return await execute_query(
             body,
             source_ip=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
+            user_id=caller.id,
+            username=caller.username,
+            user_role=caller.role.value,
         )
     except TargetValidationError as exc:
         raise HTTPException(
@@ -39,7 +48,10 @@ async def api_query(request: Request, body: QueryRequest) -> QueryResponse:
 
 
 @router.post("/query", response_class=HTMLResponse)
-async def htmx_query(request: Request) -> HTMLResponse:
+async def htmx_query(
+    request: Request,
+    caller: User | None = Depends(optional_api_key),  # noqa: B008
+) -> HTMLResponse:
     """Execute a query and return an HTMX partial (server-rendered HTML fragment)."""
     form = await request.form()
     try:
@@ -60,6 +72,9 @@ async def htmx_query(request: Request) -> HTMLResponse:
             body,
             source_ip=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
+            user_id=caller.id if caller else None,
+            username=caller.username if caller else None,
+            user_role=caller.role.value if caller else None,
         )
         return templates.TemplateResponse(
             request=request,

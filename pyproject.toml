@@ -38,7 +38,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "yoyo-migrations>=9.0.0",         # SQL migrations runner
     # Cache
-    "redis>=5.2.0",
+    "redis[hiredis]>=5.0",
     # SSH for routers
     "netmiko>=4.5.0",
     # Auth
@@ -141,7 +141,11 @@ exclude = ["tests/e2e"]
 
 # Third-party libraries without type stubs.
 [[tool.mypy.overrides]]
-module = ["asyncpg", "asyncpg.*"]
+module = ["asyncpg"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["redis", "redis.*"]
 ignore_missing_imports = true
 
 # ===== pytest =====

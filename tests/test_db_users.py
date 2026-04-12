@@ -1,0 +1,107 @@
+"""CRUD tests for bgpeek.db.users against a real PostgreSQL container."""
+
+from __future__ import annotations
+
+import asyncpg
+import pytest
+
+from bgpeek.db import users as crud
+from bgpeek.models.user import UserCreate, UserRole, UserUpdate
+
+
+def _payload(name: str = "alice", **overrides: object) -> UserCreate:
+    base: dict[str, object] = {
+        "username": name,
+        "email": f"{name}@example.com",
+        "role": UserRole.NOC,
+        "api_key": "a" * 40,
+        "enabled": True,
+    }
+    base.update(overrides)
+    return UserCreate(**base)  # type: ignore[arg-type]
+
+
+async def test_list_users_empty(pool: asyncpg.Pool) -> None:
+    assert await crud.list_users(pool) == []
+
+
+async def test_create_and_get_by_id(pool: asyncpg.Pool) -> None:
+    created = await crud.create_user(pool, _payload())
+    assert created.id > 0
+    assert created.username == "alice"
+    assert created.role == UserRole.NOC
+    assert created.auth_provider == "api_key"
+    assert created.api_key_hash is not None
+
+    fetched = await crud.get_user_by_id(pool, created.id)
+    assert fetched is not None
+    assert fetched.id == created.id
+
+
+async def test_get_by_api_key(pool: asyncpg.Pool) -> None:
+    raw_key = "b" * 40
+    await crud.create_user(pool, _payload("bob", api_key=raw_key))
+    fetched = await crud.get_user_by_api_key(pool, raw_key)
+    assert fetched is not None
+    assert fetched.username == "bob"
+
+
+async def test_get_by_api_key_wrong_key(pool: asyncpg.Pool) -> None:
+    await crud.create_user(pool, _payload("charlie", api_key="c" * 40))
+    assert await crud.get_user_by_api_key(pool, "wrong" * 10) is None
+
+
+async def test_get_by_api_key_disabled(pool: asyncpg.Pool) -> None:
+    raw_key = "d" * 40
+    await crud.create_user(pool, _payload("dave", api_key=raw_key, enabled=False))
+    assert await crud.get_user_by_api_key(pool, raw_key) is None
+
+
+async def test_get_missing_returns_none(pool: asyncpg.Pool) -> None:
+    assert await crud.get_user_by_id(pool, 9999) is None
+
+
+async def test_list_users_orders_by_username(pool: asyncpg.Pool) -> None:
+    for name in ("zoe", "alice", "mike"):
+        await crud.create_user(pool, _payload(name, api_key=f"{name:<40}"))
+    users = await crud.list_users(pool)
+    assert [u.username for u in users] == ["alice", "mike", "zoe"]
+
+
+async def test_create_duplicate_username_raises(pool: asyncpg.Pool) -> None:
+    await crud.create_user(pool, _payload("dup", api_key="e" * 40))
+    with pytest.raises(asyncpg.UniqueViolationError):
+        await crud.create_user(pool, _payload("dup", api_key="f" * 40))
+
+
+async def test_update_partial(pool: asyncpg.Pool) -> None:
+    created = await crud.create_user(pool, _payload())
+    updated = await crud.update_user(
+        pool, created.id, UserUpdate(email="new@example.com", enabled=False)
+    )
+    assert updated is not None
+    assert updated.email == "new@example.com"
+    assert updated.enabled is False
+    assert updated.username == created.username
+
+
+async def test_update_empty_payload_returns_unchanged(pool: asyncpg.Pool) -> None:
+    created = await crud.create_user(pool, _payload())
+    unchanged = await crud.update_user(pool, created.id, UserUpdate())
+    assert unchanged is not None
+    assert unchanged.id == created.id
+    assert unchanged.email == created.email
+
+
+async def test_update_missing_returns_none(pool: asyncpg.Pool) -> None:
+    assert await crud.update_user(pool, 9999, UserUpdate(enabled=False)) is None
+
+
+async def test_delete(pool: asyncpg.Pool) -> None:
+    created = await crud.create_user(pool, _payload())
+    assert await crud.delete_user(pool, created.id) is True
+    assert await crud.get_user_by_id(pool, created.id) is None
+
+
+async def test_delete_missing_returns_false(pool: asyncpg.Pool) -> None:
+    assert await crud.delete_user(pool, 9999) is False

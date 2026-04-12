@@ -7,6 +7,7 @@ from pathlib import Path
 
 import structlog
 
+from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
 from bgpeek.core.output_filter import filter_route_text
 from bgpeek.core.ssh import SSHClient, SSHError
@@ -16,8 +17,22 @@ from bgpeek.db.audit import log_audit
 from bgpeek.db.pool import get_pool
 from bgpeek.models.audit import AuditAction, AuditEntryCreate
 from bgpeek.models.query import QueryRequest, QueryResponse, QueryType
+from bgpeek.models.user import UserRole
 
 log = structlog.get_logger(__name__)
+
+_PRIVILEGED_ROLES: frozenset[UserRole] = frozenset({UserRole.ADMIN, UserRole.NOC})
+
+
+def _role_bypasses_filter(user_role: str | None) -> bool:
+    """Return True if the role should see unfiltered output."""
+    if user_role is None:
+        return False
+    try:
+        role = UserRole(user_role)
+    except ValueError:
+        return False
+    return role in _PRIVILEGED_ROLES
 
 
 class QueryExecutionError(Exception):
@@ -72,6 +87,19 @@ async def execute_query(
         if request.query_type == QueryType.BGP_ROUTE:
             validate_target(request.target)
 
+        # 1b. Check cache
+        cached = await get_cached(request)
+        if cached is not None:
+            runtime_ms = int((time.monotonic() - start) * 1000)
+            cached.cached = True
+            cached.runtime_ms = runtime_ms
+            audit_entry.success = True
+            audit_entry.runtime_ms = runtime_ms
+            audit_entry.response_bytes = len(cached.filtered_output.encode())
+            await log_audit(pool, audit_entry)
+            log.info("cache_hit", device=request.device_name, target=request.target)
+            return cached
+
         # 2. Look up device
         device = await device_crud.get_device_by_name(pool, request.device_name)
         if device is None:
@@ -102,8 +130,8 @@ async def execute_query(
         ) as ssh:
             raw_output = await ssh.send_command(command)
 
-        # 5. Filter output
-        if request.query_type == QueryType.BGP_ROUTE:
+        # 5. Filter output (privileged roles bypass prefix filtering)
+        if request.query_type == QueryType.BGP_ROUTE and not _role_bypasses_filter(user_role):
             filtered_output = filter_route_text(raw_output)
         else:
             filtered_output = raw_output
@@ -117,7 +145,7 @@ async def execute_query(
         await log_audit(pool, audit_entry)
 
         # 7. Response
-        return QueryResponse(
+        response = QueryResponse(
             device_name=device.name,
             query_type=request.query_type,
             target=request.target,
@@ -126,6 +154,11 @@ async def execute_query(
             filtered_output=filtered_output,
             runtime_ms=runtime_ms,
         )
+
+        # 8. Store in cache
+        await set_cached(request, response)
+
+        return response
 
     except TargetValidationError as exc:
         runtime_ms = int((time.monotonic() - start) * 1000)

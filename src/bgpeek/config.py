@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         default="redis://localhost:6379/0",
         description="Redis connection string",
     )
+    cache_ttl: int = Field(
+        default=60,
+        description="Query cache TTL in seconds",
+    )
 
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
