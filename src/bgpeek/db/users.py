@@ -5,13 +5,24 @@ from __future__ import annotations
 import hashlib
 
 import asyncpg
+import bcrypt
 
-from bgpeek.models.user import User, UserCreate, UserUpdate
+from bgpeek.models.user import User, UserCreate, UserCreateLocal, UserRole, UserUpdate
 
 
 def _hash_key(api_key: str) -> str:
     """SHA-256 hash of a raw API key for safe storage and lookup."""
     return hashlib.sha256(api_key.encode()).hexdigest()
+
+
+def _hash_password(password: str) -> str:
+    """Bcrypt-hash a plaintext password."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    """Check a plaintext password against a bcrypt hash."""
+    return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
 async def create_user(pool: asyncpg.Pool, payload: UserCreate) -> User:
@@ -81,3 +92,64 @@ async def delete_user(pool: asyncpg.Pool, user_id: int) -> bool:
     """Delete a user. Returns True if a row was removed."""
     result: str = await pool.execute("DELETE FROM users WHERE id = $1", user_id)
     return result.endswith(" 1")
+
+
+async def create_local_user(pool: asyncpg.Pool, payload: UserCreateLocal) -> User:
+    """Insert a new local (password) user. Raises ``asyncpg.UniqueViolationError`` on duplicate."""
+    row = await pool.fetchrow(
+        """
+        INSERT INTO users (username, email, role, auth_provider, password_hash, enabled)
+        VALUES ($1, $2, $3, 'local', $4, TRUE)
+        RETURNING *
+        """,
+        payload.username,
+        payload.email,
+        payload.role.value,
+        _hash_password(payload.password),
+    )
+    assert row is not None
+    return User.model_validate(dict(row))
+
+
+async def get_user_by_username(pool: asyncpg.Pool, username: str) -> User | None:
+    """Fetch a user by username, or None."""
+    row = await pool.fetchrow("SELECT * FROM users WHERE username = $1", username)
+    return User.model_validate(dict(row)) if row else None
+
+
+async def upsert_ldap_user(
+    pool: asyncpg.Pool,
+    username: str,
+    email: str | None,
+    role: UserRole,
+) -> User:
+    """Create or update an LDAP-provisioned user. Updates email, role, and last_login_at on conflict."""
+    row = await pool.fetchrow(
+        """
+        INSERT INTO users (username, email, role, auth_provider, enabled)
+        VALUES ($1, $2, $3, 'ldap', TRUE)
+        ON CONFLICT (username) DO UPDATE
+            SET email = EXCLUDED.email,
+                role = EXCLUDED.role,
+                last_login_at = now()
+        RETURNING *
+        """,
+        username,
+        email,
+        role.value,
+    )
+    assert row is not None
+    return User.model_validate(dict(row))
+
+
+async def get_user_by_credentials(pool: asyncpg.Pool, username: str, password: str) -> User | None:
+    """Authenticate a local user by username and password. Returns None on mismatch or disabled."""
+    row = await pool.fetchrow(
+        "SELECT * FROM users WHERE username = $1 AND auth_provider = 'local' AND enabled IS TRUE",
+        username,
+    )
+    if row is None:
+        return None
+    if not _verify_password(password, row["password_hash"]):
+        return None
+    return User.model_validate(dict(row))

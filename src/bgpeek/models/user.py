@@ -42,6 +42,26 @@ class UserUpdate(BaseModel):
     enabled: bool | None = None
 
 
+class UserCreateLocal(BaseModel):
+    """Payload for creating a local (username/password) user."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    email: str | None = None
+    role: UserRole = UserRole.PUBLIC
+
+
+class LoginRequest(BaseModel):
+    """Payload for username/password login."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
+    password: str
+
+
 class User(UserBase):
     """User as stored in PostgreSQL."""
 
@@ -53,3 +73,12 @@ class User(UserBase):
     password_hash: str | None = None
     created_at: datetime
     last_login_at: datetime | None = None
+
+
+class LoginResponse(BaseModel):
+    """Response returned after successful login."""
+
+    token: str
+    token_type: str = "bearer"  # noqa: S105
+    expires_in: int
+    user: User

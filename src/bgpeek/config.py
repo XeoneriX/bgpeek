@@ -38,6 +38,24 @@ class Settings(BaseSettings):
         description="Query cache TTL in seconds",
     )
 
+    # --- JWT ---
+    jwt_secret: str = "change-me-in-production"  # noqa: S105
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+
+    # --- LDAP ---
+    ldap_enabled: bool = False
+    ldap_server: str = ""  # e.g. "ldap://ldap.example.com:389" or "ldaps://..."
+    ldap_bind_dn: str = ""  # service account DN for search
+    ldap_bind_password: str = ""
+    ldap_base_dn: str = ""  # e.g. "ou=people,dc=example,dc=com"
+    ldap_user_filter: str = "(uid={username})"  # {username} is replaced
+    ldap_use_tls: bool = False  # STARTTLS on non-SSL connection
+    ldap_role_mapping: str = ""  # JSON: {"cn=noc,ou=groups,dc=ex": "noc"}
+    ldap_default_role: str = "public"
+    ldap_email_attr: str = "mail"
+    ldap_group_attr: str = "memberOf"  # attribute on user entry listing group DNs
+
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
     static_dir: Path = Path(__file__).parent / "static"

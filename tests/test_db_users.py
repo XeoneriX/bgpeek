@@ -6,7 +6,7 @@ import asyncpg
 import pytest
 
 from bgpeek.db import users as crud
-from bgpeek.models.user import UserCreate, UserRole, UserUpdate
+from bgpeek.models.user import UserCreate, UserCreateLocal, UserRole, UserUpdate
 
 
 def _payload(name: str = "alice", **overrides: object) -> UserCreate:
@@ -105,3 +105,65 @@ async def test_delete(pool: asyncpg.Pool) -> None:
 
 async def test_delete_missing_returns_false(pool: asyncpg.Pool) -> None:
     assert await crud.delete_user(pool, 9999) is False
+
+
+# ---------------------------------------------------------------------------
+# Local user (password-based) CRUD
+# ---------------------------------------------------------------------------
+
+
+def _local_payload(name: str = "local-alice", **overrides: object) -> UserCreateLocal:
+    base: dict[str, object] = {
+        "username": name,
+        "password": "secure-password-123",
+        "email": f"{name}@example.com",
+        "role": UserRole.NOC,
+    }
+    base.update(overrides)
+    return UserCreateLocal(**base)  # type: ignore[arg-type]
+
+
+async def test_create_local_user(pool: asyncpg.Pool) -> None:
+    user = await crud.create_local_user(pool, _local_payload())
+    assert user.id > 0
+    assert user.username == "local-alice"
+    assert user.auth_provider == "local"
+    assert user.password_hash is not None
+    assert user.api_key_hash is None
+
+
+async def test_get_user_by_credentials_correct_password(pool: asyncpg.Pool) -> None:
+    await crud.create_local_user(pool, _local_payload("cred-user"))
+    user = await crud.get_user_by_credentials(pool, "cred-user", "secure-password-123")
+    assert user is not None
+    assert user.username == "cred-user"
+
+
+async def test_get_user_by_credentials_wrong_password(pool: asyncpg.Pool) -> None:
+    await crud.create_local_user(pool, _local_payload("wrong-pw"))
+    user = await crud.get_user_by_credentials(pool, "wrong-pw", "bad-password-999")
+    assert user is None
+
+
+async def test_get_user_by_credentials_disabled_user(pool: asyncpg.Pool) -> None:
+    created = await crud.create_local_user(pool, _local_payload("disabled-user"))
+    await pool.execute("UPDATE users SET enabled = FALSE WHERE id = $1", created.id)
+    user = await crud.get_user_by_credentials(pool, "disabled-user", "secure-password-123")
+    assert user is None
+
+
+async def test_get_user_by_credentials_nonexistent(pool: asyncpg.Pool) -> None:
+    user = await crud.get_user_by_credentials(pool, "ghost", "password12345678")
+    assert user is None
+
+
+async def test_get_user_by_username(pool: asyncpg.Pool) -> None:
+    await crud.create_local_user(pool, _local_payload("lookup-user"))
+    user = await crud.get_user_by_username(pool, "lookup-user")
+    assert user is not None
+    assert user.username == "lookup-user"
+
+
+async def test_get_user_by_username_missing(pool: asyncpg.Pool) -> None:
+    user = await crud.get_user_by_username(pool, "no-such-user")
+    assert user is None

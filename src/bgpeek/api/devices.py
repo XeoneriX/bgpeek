@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from bgpeek.core.auth import require_api_key, require_role
+from bgpeek.core.auth import authenticate, require_role
 from bgpeek.core.cache import invalidate_device
 from bgpeek.db import devices as crud
 from bgpeek.db.pool import get_pool
@@ -20,7 +20,7 @@ _admin = require_role(UserRole.ADMIN)
 @router.get("", response_model=list[Device])
 async def list_devices(
     enabled_only: bool = False,
-    _caller: User = Depends(require_api_key),  # noqa: B008
+    _caller: User = Depends(authenticate),  # noqa: B008
 ) -> list[Device]:
     """List all devices, optionally filtered to enabled only."""
     return await crud.list_devices(get_pool(), enabled_only=enabled_only)
@@ -29,7 +29,7 @@ async def list_devices(
 @router.get("/{device_id}", response_model=Device)
 async def get_device(
     device_id: int,
-    _caller: User = Depends(require_api_key),  # noqa: B008
+    _caller: User = Depends(authenticate),  # noqa: B008
 ) -> Device:
     """Get a single device by id."""
     device = await crud.get_device_by_id(get_pool(), device_id)

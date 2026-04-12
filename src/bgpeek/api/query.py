@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
-from bgpeek.core.auth import optional_api_key, require_api_key
+from bgpeek.core.auth import authenticate, optional_auth
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.validators import TargetValidationError
 from bgpeek.models.query import QueryError, QueryRequest, QueryResponse, QueryType
@@ -21,7 +21,7 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 async def api_query(
     request: Request,
     body: QueryRequest,
-    caller: User = Depends(require_api_key),  # noqa: B008
+    caller: User = Depends(authenticate),  # noqa: B008
 ) -> QueryResponse:
     """Execute a looking glass query (JSON API)."""
     try:
@@ -50,7 +50,7 @@ async def api_query(
 @router.post("/query", response_class=HTMLResponse)
 async def htmx_query(
     request: Request,
-    caller: User | None = Depends(optional_api_key),  # noqa: B008
+    caller: User | None = Depends(optional_auth),  # noqa: B008
 ) -> HTMLResponse:
     """Execute a query and return an HTMX partial (server-rendered HTML fragment)."""
     form = await request.form()

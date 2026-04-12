@@ -1,4 +1,4 @@
-"""Tests for the API key authentication dependency."""
+"""Tests for the authentication dependencies (API key + JWT)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import Depends, FastAPI, status
 from fastapi.testclient import TestClient
 
-from bgpeek.core.auth import optional_api_key, require_api_key, require_role
+from bgpeek.core.auth import authenticate, optional_auth, require_api_key, require_role
 from bgpeek.models.user import User, UserRole
 
 _NOW = datetime.now(tz=UTC)
@@ -37,12 +37,33 @@ _NOC = User(
     last_login_at=None,
 )
 
+_LOCAL_USER = User(
+    id=3,
+    username="local-user",
+    email="local@example.com",
+    role=UserRole.PUBLIC,
+    auth_provider="local",
+    password_hash="fakebcrypt",
+    enabled=True,
+    created_at=_NOW,
+    last_login_at=None,
+)
+
+_DISABLED_USER = User(
+    id=4,
+    username="disabled",
+    email=None,
+    role=UserRole.PUBLIC,
+    auth_provider="local",
+    enabled=False,
+    created_at=_NOW,
+    last_login_at=None,
+)
 
 _admin_dep = require_role(UserRole.ADMIN)
 
 
 def _build_app() -> FastAPI:
-    """Minimal app with auth-protected endpoints for testing."""
     app = FastAPI()
 
     @app.get("/protected")
@@ -50,11 +71,15 @@ def _build_app() -> FastAPI:
         return {"user": user.username}
 
     @app.get("/optional")
-    async def optional(user: User | None = Depends(optional_api_key)) -> dict[str, str]:  # noqa: B008  # type: ignore[assignment]
+    async def optional(user: User | None = Depends(optional_auth)) -> dict[str, str]:  # noqa: B008  # type: ignore[assignment]
         return {"user": user.username if user else "anonymous"}
 
     @app.get("/admin-only")
     async def admin_only(user: User = Depends(_admin_dep)) -> dict[str, str]:  # noqa: B008  # type: ignore[assignment]
+        return {"user": user.username}
+
+    @app.get("/unified")
+    async def unified(user: User = Depends(authenticate)) -> dict[str, str]:  # noqa: B008  # type: ignore[assignment]
         return {"user": user.username}
 
     return app
@@ -63,6 +88,14 @@ def _build_app() -> FastAPI:
 def _patch_lookup(return_value: User | None) -> object:
     return patch(
         "bgpeek.core.auth.user_crud.get_user_by_api_key",
+        new_callable=AsyncMock,
+        return_value=return_value,
+    )
+
+
+def _patch_user_by_id(return_value: User | None) -> object:
+    return patch(
+        "bgpeek.core.auth.user_crud.get_user_by_id",
         new_callable=AsyncMock,
         return_value=return_value,
     )
@@ -81,11 +114,11 @@ class TestRequireApiKey:
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["user"] == "admin"
 
-    def test_missing_key_returns_422(self) -> None:
+    def test_missing_key_returns_401(self) -> None:
         app = _build_app()
         client = TestClient(app)
         resp = client.get("/protected")
-        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_invalid_key_returns_401(self) -> None:
         app = _build_app()
@@ -95,7 +128,7 @@ class TestRequireApiKey:
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-class TestOptionalApiKey:
+class TestOptionalAuth:
     def test_no_key_returns_anonymous(self) -> None:
         app = _build_app()
         client = TestClient(app)
@@ -133,3 +166,66 @@ class TestRequireRole:
             client = TestClient(app)
             resp = client.get("/admin-only", headers={"X-API-Key": "test-key"})
         assert resp.status_code == status.HTTP_403_FORBIDDEN
+
+
+class TestJWTAuth:
+    def test_valid_jwt_returns_user(self) -> None:
+        from bgpeek.core.jwt import create_token
+
+        token = create_token(_LOCAL_USER.id, _LOCAL_USER.username, _LOCAL_USER.role.value)
+        app = _build_app()
+        with _patch_pool(), _patch_user_by_id(_LOCAL_USER):
+            client = TestClient(app)
+            resp = client.get("/unified", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.json()["user"] == "local-user"
+
+    def test_expired_jwt_returns_401(self) -> None:
+        import jwt as pyjwt
+
+        from bgpeek.config import settings
+
+        payload = {
+            "sub": "3",
+            "username": "local-user",
+            "role": "public",
+            "iat": 1000000,
+            "exp": 1000001,
+        }
+        token = pyjwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        app = _build_app()
+        with _patch_pool():
+            client = TestClient(app)
+            resp = client.get("/unified", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_invalid_jwt_returns_401(self) -> None:
+        app = _build_app()
+        with _patch_pool():
+            client = TestClient(app)
+            resp = client.get("/unified", headers={"Authorization": "Bearer not-a-valid-token"})
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_jwt_disabled_user_returns_401(self) -> None:
+        from bgpeek.core.jwt import create_token
+
+        token = create_token(_DISABLED_USER.id, _DISABLED_USER.username, _DISABLED_USER.role.value)
+        app = _build_app()
+        with _patch_pool(), _patch_user_by_id(_DISABLED_USER):
+            client = TestClient(app)
+            resp = client.get("/unified", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_api_key_still_works_on_unified(self) -> None:
+        app = _build_app()
+        with _patch_pool(), _patch_lookup(_ADMIN):
+            client = TestClient(app)
+            resp = client.get("/unified", headers={"X-API-Key": "test-key"})
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.json()["user"] == "admin"
+
+    def test_no_credentials_returns_401(self) -> None:
+        app = _build_app()
+        client = TestClient(app)
+        resp = client.get("/unified")
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
