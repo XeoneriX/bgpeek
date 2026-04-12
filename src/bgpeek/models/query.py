@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,6 +52,26 @@ class QueryResponse(BaseModel):
     runtime_ms: int
     cached: bool = False
     parsed_routes: list[BGPRoute] = Field(default_factory=list)
+    result_id: str | None = None
+
+
+class StoredResult(BaseModel):
+    """Query result as stored in PostgreSQL."""
+
+    id: uuid.UUID
+    user_id: int | None = None
+    username: str | None = None
+    device_name: str
+    query_type: QueryType
+    target: str
+    command: str | None = None
+    raw_output: str | None = None
+    filtered_output: str | None = None
+    parsed_routes: list[BGPRoute] = Field(default_factory=list)
+    runtime_ms: int | None = None
+    cached: bool = False
+    created_at: datetime
+    expires_at: datetime
 
 
 class QueryError(BaseModel):

@@ -22,6 +22,21 @@
         <span class="ml-auto text-xs text-slate-500 dark:text-slate-400 tabular-nums">
             {{ result.runtime_ms }} ms
         </span>
+
+        {% if result.result_id %}
+        <button type="button"
+                onclick="(function(btn){navigator.clipboard.writeText(window.location.origin+'/result/{{ result.result_id }}').then(function(){btn.querySelector('.share-label').textContent='Copied!';setTimeout(function(){btn.querySelector('.share-label').textContent='Share'},1500)});})(this)"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
+                       text-slate-500 dark:text-slate-400
+                       hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                title="Copy permalink to clipboard">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.54a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.798"/>
+            </svg>
+            <span class="share-label">Share</span>
+        </button>
+        {% endif %}
     </div>
 
     {# Command line #}

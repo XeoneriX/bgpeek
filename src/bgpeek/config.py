@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     ldap_email_attr: str = "mail"
     ldap_group_attr: str = "memberOf"  # attribute on user entry listing group DNs
 
+    # --- Results ---
+    result_ttl_days: int = Field(
+        default=7,
+        description="How long shared query results are kept (days)",
+    )
+
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
     static_dir: Path = Path(__file__).parent / "static"
