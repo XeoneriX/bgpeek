@@ -4,30 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}bgpeek{% endblock %}</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      };
+    </script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script>
+      /* Apply dark mode before paint to prevent flash. */
+      (function () {
+        var s = localStorage.getItem("bgpeek-theme");
+        if (s === "dark" || (!s && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
+    <style>
+      /* Minimal custom styles — scrollbar and htmx indicator. */
+      .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+      .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+      .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+      .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+      .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-    <header class="bg-white border-b border-slate-200">
-        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-            <a href="/" class="flex items-center gap-2">
-                <span class="text-2xl font-bold tracking-tight">bgpeek</span>
-                <span class="text-xs text-slate-500 mt-1">v{{ version }}</span>
-            </a>
-            <nav class="text-sm text-slate-600 flex gap-4">
-                <a href="/api/docs" class="hover:text-slate-900">API</a>
-                <a href="https://github.com/xeonerix/bgpeek" class="hover:text-slate-900">GitHub</a>
-            </nav>
-        </div>
-    </header>
-
-    <main class="max-w-5xl mx-auto px-4 py-8">
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="text-center text-xs text-slate-500 py-8">
-        Open-source looking glass &middot; Apache-2.0
-    </footer>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+    {% block body %}{% endblock %}
+    <script src="/static/js/theme.js"></script>
 </body>
 </html>

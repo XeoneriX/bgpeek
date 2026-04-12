@@ -7,6 +7,7 @@ from pathlib import Path
 
 import structlog
 
+from bgpeek.core.bgp_parser import parse_bgp_output
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
 from bgpeek.core.output_filter import filter_route_text
@@ -144,7 +145,12 @@ async def execute_query(
         audit_entry.response_bytes = len(filtered_output.encode())
         await log_audit(pool, audit_entry)
 
-        # 7. Response
+        # 7. Parse structured BGP routes (best-effort)
+        parsed_routes = []
+        if request.query_type == QueryType.BGP_ROUTE:
+            parsed_routes = parse_bgp_output(filtered_output, platform=device.platform)
+
+        # 8. Response
         response = QueryResponse(
             device_name=device.name,
             query_type=request.query_type,
@@ -153,9 +159,10 @@ async def execute_query(
             raw_output=raw_output,
             filtered_output=filtered_output,
             runtime_ms=runtime_ms,
+            parsed_routes=parsed_routes,
         )
 
-        # 8. Store in cache
+        # 9. Store in cache
         await set_cached(request, response)
 
         return response

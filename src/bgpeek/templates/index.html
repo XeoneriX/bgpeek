@@ -2,59 +2,181 @@
 
 {% block title %}bgpeek &middot; looking glass{% endblock %}
 
-{% block content %}
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-    <h1 class="text-xl font-semibold mb-4">Network query</h1>
+{% block body %}
+{# ── Header ─────────────────────────────────────────────────────── #}
+<header class="h-14 flex-shrink-0 flex items-center justify-between px-4 sm:px-6
+               bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+    <a href="/" class="flex items-center gap-2">
+        <img src="/static/favicon.svg" alt="" class="w-7 h-7" aria-hidden="true">
+        <span class="text-lg font-bold tracking-tight">bgpeek</span>
+    </a>
+    <div class="flex items-center gap-3">
+        <a href="/api/docs" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">API</a>
+        <button type="button"
+                onclick="bgpeekToggleTheme()"
+                aria-label="Toggle dark mode"
+                class="p-1.5 rounded-md text-slate-500 dark:text-slate-400
+                       hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            {# Sun icon (visible in dark mode) #}
+            <svg class="w-5 h-5 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/>
+            </svg>
+            {# Moon icon (visible in light mode) #}
+            <svg class="w-5 h-5 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/>
+            </svg>
+        </button>
+    </div>
+</header>
 
-    <form hx-post="/query"
-          hx-target="#result"
-          hx-indicator="#spinner"
-          class="space-y-4">
+{# ── Main layout: sidebar + results ────────────────────────────── #}
+<div class="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <label class="block">
-                <span class="text-sm font-medium text-slate-700">Location</span>
-                <select name="location"
-                        required
-                        class="mt-1 w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
-                    <option value="">— select device —</option>
-                    {% for device in devices %}
-                    <option value="{{ device.name }}">
-                        {{ device.name }}{% if device.location %} ({{ device.location }}){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-            </label>
+    {# ── Sidebar ──────────────────────────────────────────────────── #}
+    <aside class="w-full md:w-[280px] lg:w-[350px] flex-shrink-0
+                  bg-white dark:bg-slate-800
+                  border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700
+                  flex flex-col overflow-y-auto">
 
-            <label class="block">
-                <span class="text-sm font-medium text-slate-700">Query type</span>
-                <select name="query_type"
-                        class="mt-1 w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
-                    <option value="bgp_route">BGP route</option>
-                    <option value="ping">Ping</option>
-                    <option value="traceroute">Traceroute</option>
-                </select>
-            </label>
+        <div class="p-5 flex-1">
+            <h1 class="text-base font-semibold mb-4">Network Query</h1>
 
-            <label class="block">
-                <span class="text-sm font-medium text-slate-700">Target</span>
-                <input type="text"
-                       name="target"
-                       required
-                       placeholder="8.8.8.0/24"
-                       class="mt-1 w-full rounded border-slate-300 focus:border-slate-500 focus:ring-slate-500">
-            </label>
+            <form id="query-form"
+                  hx-post="/query"
+                  hx-target="#results"
+                  hx-swap="afterbegin"
+                  hx-indicator="#spinner"
+                  class="space-y-4">
+
+                <label class="block">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Location</span>
+                    <select name="location" required
+                            class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
+                                   bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
+                                   px-3 py-2 text-sm
+                                   focus:border-slate-500 focus:ring-1 focus:ring-slate-500
+                                   dark:focus:border-slate-400 dark:focus:ring-slate-400">
+                        <option value="">Select device</option>
+                        {% for device in devices %}
+                        <option value="{{ device.name }}">
+                            {{ device.name }}{% if device.location %} ({{ device.location }}){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Query type</span>
+                    <select name="query_type"
+                            class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
+                                   bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
+                                   px-3 py-2 text-sm
+                                   focus:border-slate-500 focus:ring-1 focus:ring-slate-500
+                                   dark:focus:border-slate-400 dark:focus:ring-slate-400">
+                        <option value="bgp_route">BGP route</option>
+                        <option value="ping">Ping</option>
+                        <option value="traceroute">Traceroute</option>
+                    </select>
+                </label>
+
+                <label class="block">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Target</span>
+                    <input type="text" name="target" required
+                           placeholder="8.8.8.0/24 or 1.1.1.1"
+                           class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
+                                  bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
+                                  px-3 py-2 text-sm placeholder-slate-400 dark:placeholder-slate-500
+                                  focus:border-slate-500 focus:ring-1 focus:ring-slate-500
+                                  dark:focus:border-slate-400 dark:focus:ring-slate-400">
+                </label>
+
+                <div class="space-y-2 pt-1">
+                    <button id="btn-run" type="submit"
+                            class="w-full flex items-center justify-center gap-2
+                                   rounded-md bg-slate-900 dark:bg-slate-100
+                                   text-white dark:text-slate-900
+                                   px-4 py-2 text-sm font-medium
+                                   hover:bg-slate-800 dark:hover:bg-white
+                                   focus:outline-none focus:ring-2 focus:ring-slate-500
+                                   disabled:opacity-50 disabled:cursor-not-allowed
+                                   transition-colors">
+                        {# Spinner (hidden by default, shown via htmx-indicator) #}
+                        <svg id="spinner" class="htmx-indicator w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Run query</span>
+                    </button>
+
+                    <button id="btn-abort" type="button" disabled
+                            onclick="htmx.trigger(document.getElementById('query-form'), 'htmx:abort')"
+                            class="w-full rounded-md border border-slate-300 dark:border-slate-600
+                                   text-slate-700 dark:text-slate-300
+                                   px-4 py-2 text-sm font-medium
+                                   hover:bg-slate-50 dark:hover:bg-slate-700
+                                   focus:outline-none focus:ring-2 focus:ring-slate-500
+                                   disabled:opacity-30 disabled:cursor-not-allowed
+                                   transition-colors">
+                        Abort
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <div class="flex items-center gap-3">
-            <button type="submit"
-                    class="px-4 py-2 bg-slate-900 text-white rounded hover:bg-slate-800 focus:ring-2 focus:ring-slate-500">
-                Run query
-            </button>
-            <span id="spinner" class="htmx-indicator text-sm text-slate-500">running…</span>
+        <div class="px-5 py-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700">
+            bgpeek v{{ version }}
+            <span class="mx-1">&middot;</span>
+            <a href="https://github.com/xeonerix/bgpeek"
+               class="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">Source</a>
         </div>
-    </form>
+    </aside>
+
+    {# ── Results area ─────────────────────────────────────────────── #}
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+        <div id="results">
+            {# Results are prepended here by HTMX. Empty state shown when no children. #}
+        </div>
+
+        {# Empty state (hidden once results exist via CSS) #}
+        <div id="empty-state" class="flex flex-col items-center justify-center text-center py-24">
+            <svg class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64"/>
+            </svg>
+            <p class="text-slate-400 dark:text-slate-500 text-sm">Run a query to see results</p>
+        </div>
+    </main>
 </div>
 
-<div id="result" class="mt-6"></div>
+<script>
+(function () {
+  "use strict";
+
+  var form     = document.getElementById("query-form");
+  var btnRun   = document.getElementById("btn-run");
+  var btnAbort = document.getElementById("btn-abort");
+  var empty    = document.getElementById("empty-state");
+  var results  = document.getElementById("results");
+
+  /* Toggle Run/Abort state on HTMX lifecycle events. */
+  form.addEventListener("htmx:beforeRequest", function () {
+    btnRun.disabled   = true;
+    btnAbort.disabled = false;
+  });
+
+  form.addEventListener("htmx:afterRequest", function () {
+    btnRun.disabled   = false;
+    btnAbort.disabled = true;
+  });
+
+  /* Hide empty state once results appear. */
+  var observer = new MutationObserver(function () {
+    empty.style.display = results.children.length ? "none" : "";
+  });
+  observer.observe(results, { childList: true });
+})();
+</script>
 {% endblock %}

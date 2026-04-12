@@ -1,15 +1,95 @@
-<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-    <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold text-slate-800">
+<div class="mb-4 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+    {# Header bar #}
+    <div class="flex flex-wrap items-center gap-2 px-4 py-2.5
+                bg-slate-100 dark:bg-slate-800
+                border-b border-slate-200 dark:border-slate-700">
+        <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-200">
             {{ result.device_name }}
-            <span class="text-sm font-normal text-slate-500">/ {{ result.query_type }}</span>
         </h2>
-        <span class="text-xs text-slate-500">{{ result.runtime_ms }}ms</span>
+
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                     bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+            {{ result.query_type }}
+        </span>
+
+        {% if result.cached %}
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                     bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
+            cached
+        </span>
+        {% endif %}
+
+        <span class="ml-auto text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+            {{ result.runtime_ms }} ms
+        </span>
     </div>
 
-    <div class="mb-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1 rounded">
-        {{ result.command }}
+    {# Command line #}
+    <div class="px-4 py-1.5 text-xs font-mono text-slate-500 dark:text-slate-400
+                bg-slate-50 dark:bg-slate-900
+                border-b border-slate-200 dark:border-slate-700"
+         style="{% if not result.command %}display:none{% endif %}">
+        <span class="select-all">{{ result.command }}</span>
     </div>
 
-    <pre class="bg-slate-900 text-green-400 text-sm p-4 rounded-lg overflow-x-auto max-h-[600px] overflow-y-auto">{{ result.filtered_output }}</pre>
+    {% if result.parsed_routes %}
+    {# Structured BGP table #}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+            <thead class="text-xs uppercase tracking-wider
+                          bg-slate-800 dark:bg-slate-900
+                          text-slate-400 dark:text-slate-500">
+                <tr>
+                    <th class="px-4 py-2.5">Prefix</th>
+                    <th class="px-4 py-2.5">Next Hop</th>
+                    <th class="px-4 py-2.5">AS Path</th>
+                    <th class="px-4 py-2.5 text-center">Origin</th>
+                    <th class="px-4 py-2.5 text-right">LP</th>
+                    <th class="px-4 py-2.5 text-right">MED</th>
+                    <th class="px-4 py-2.5">Communities</th>
+                </tr>
+            </thead>
+            <tbody class="font-mono bg-slate-900 dark:bg-slate-950 text-slate-200">
+                {% for route in result.parsed_routes %}
+                <tr class="border-t border-slate-800 dark:border-slate-800
+                           {% if route.best %}bg-emerald-900/20{% endif %}
+                           hover:bg-slate-800/50 transition-colors">
+                    <td class="px-4 py-2 whitespace-nowrap">
+                        {% if route.best %}<span class="text-emerald-400 mr-1" title="Best route">*</span>{% endif %}
+                        <span class="text-green-400">{{ route.prefix }}</span>
+                    </td>
+                    <td class="px-4 py-2 whitespace-nowrap text-slate-300">{{ route.next_hop or '-' }}</td>
+                    <td class="px-4 py-2 whitespace-nowrap text-sky-300">{{ route.as_path or '-' }}</td>
+                    <td class="px-4 py-2 text-center whitespace-nowrap text-slate-400">{{ route.origin or '-' }}</td>
+                    <td class="px-4 py-2 text-right whitespace-nowrap text-amber-300">
+                        {{ route.local_pref if route.local_pref is not none else '-' }}
+                    </td>
+                    <td class="px-4 py-2 text-right whitespace-nowrap text-slate-400">
+                        {{ route.med if route.med is not none else '-' }}
+                    </td>
+                    <td class="px-4 py-2 text-xs text-slate-400">
+                        {{ route.communities | join(', ') if route.communities else '-' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Toggle raw output #}
+    <details class="border-t border-slate-200 dark:border-slate-700">
+        <summary class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 cursor-pointer
+                        hover:bg-slate-50 dark:hover:bg-slate-800/50 select-none">
+            Show raw output
+        </summary>
+        <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
+                    p-4 overflow-x-auto max-h-[400px] overflow-y-auto scrollbar-thin
+                    font-mono select-all">{{ result.filtered_output }}</pre>
+    </details>
+    {% else %}
+    {# Raw output fallback (ping, traceroute, unparsed BGP) #}
+    <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
+                p-4 overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin
+                font-mono select-all">{{ result.filtered_output }}</pre>
+    {% endif %}
 </div>

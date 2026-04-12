@@ -25,6 +25,19 @@ class QueryRequest(BaseModel):
     target: str = Field(min_length=1, max_length=255)
 
 
+class BGPRoute(BaseModel):
+    """Single parsed BGP route entry."""
+
+    prefix: str
+    next_hop: str | None = None
+    as_path: str | None = None
+    origin: str | None = None  # IGP, EGP, Incomplete
+    med: int | None = None
+    local_pref: int | None = None
+    communities: list[str] = Field(default_factory=list)
+    best: bool = False
+
+
 class QueryResponse(BaseModel):
     """Result of a successful query."""
 
@@ -36,6 +49,7 @@ class QueryResponse(BaseModel):
     filtered_output: str
     runtime_ms: int
     cached: bool = False
+    parsed_routes: list[BGPRoute] = Field(default_factory=list)
 
 
 class QueryError(BaseModel):
