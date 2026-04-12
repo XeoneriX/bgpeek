@@ -4,10 +4,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from bgpeek import __version__
 from bgpeek.api import auth as auth_api
@@ -15,6 +16,7 @@ from bgpeek.api import devices as devices_api
 from bgpeek.api import query as query_api
 from bgpeek.config import settings
 from bgpeek.core.auth import optional_auth
+from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
 from bgpeek.core.redis import close_redis, init_redis
 from bgpeek.core.time_utils import timeago
 from bgpeek.db import devices as device_crud
@@ -26,6 +28,37 @@ log = structlog.get_logger()
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 templates.env.filters["timeago"] = timeago
+
+_LANG_COOKIE = "bgpeek_lang"
+_LANG_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year
+
+
+class I18nMiddleware(BaseHTTPMiddleware):
+    """Detect language preference and attach ``t`` / ``lang`` to request state."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        query_lang = request.query_params.get("lang")
+        cookie_lang = request.cookies.get(_LANG_COOKIE)
+        accept_lang = request.headers.get("accept-language")
+
+        lang = detect_language(query_lang, cookie_lang, accept_lang, settings.default_lang)
+        request.state.lang = lang
+        request.state.t = get_translations(lang)
+
+        response = await call_next(request)
+
+        # Persist language choice in cookie when explicitly set via query param.
+        if query_lang and query_lang in SUPPORTED_LANGS:
+            response.set_cookie(
+                key=_LANG_COOKIE,
+                value=query_lang,
+                max_age=_LANG_COOKIE_MAX_AGE,
+                httponly=False,
+                samesite="lax",
+                path="/",
+            )
+
+        return response
 
 
 @asynccontextmanager
@@ -49,6 +82,8 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+app.add_middleware(I18nMiddleware)
 
 app.mount(
     "/static",
@@ -80,7 +115,13 @@ async def index(
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"version": __version__, "devices": devices, "user": user},
+        context={
+            "version": __version__,
+            "devices": devices,
+            "user": user,
+            "t": request.state.t,
+            "lang": request.state.lang,
+        },
     )
 
 
@@ -116,6 +157,8 @@ async def history(
         "has_more": has_more,
         "next_offset": next_offset,
         "user": user,
+        "t": request.state.t,
+        "lang": request.state.lang,
     }
 
     if partial:

@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from bgpeek.config import settings
 from bgpeek.core.auth import authenticate, optional_auth
 from bgpeek.core.query import QueryExecutionError, execute_query
+from bgpeek.core.rate_limit import rate_limit_query
 from bgpeek.core.validators import TargetValidationError
 from bgpeek.db.pool import get_pool
 from bgpeek.db.results import get_result, list_results, save_result
@@ -35,6 +36,7 @@ async def api_query(
     request: Request,
     body: QueryRequest,
     caller: User = Depends(authenticate),  # noqa: B008
+    _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> QueryResponse:
     """Execute a looking glass query (JSON API)."""
     try:
@@ -67,6 +69,7 @@ async def api_query(
 async def htmx_query(
     request: Request,
     caller: User | None = Depends(optional_auth),  # noqa: B008
+    _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> HTMLResponse:
     """Execute a query and return an HTMX partial (server-rendered HTML fragment)."""
     form = await request.form()
@@ -80,7 +83,11 @@ async def htmx_query(
         return templates.TemplateResponse(
             request=request,
             name="partials/error.html",
-            context={"error": "Invalid query parameters."},
+            context={
+                "error": "Invalid query parameters.",
+                "t": request.state.t,
+                "lang": request.state.lang,
+            },
         )
 
     try:
@@ -101,19 +108,31 @@ async def htmx_query(
         return templates.TemplateResponse(
             request=request,
             name="partials/result.html",
-            context={"result": result},
+            context={
+                "result": result,
+                "t": request.state.t,
+                "lang": request.state.lang,
+            },
         )
     except TargetValidationError as exc:
         return templates.TemplateResponse(
             request=request,
             name="partials/error.html",
-            context={"error": exc.reason},
+            context={
+                "error": exc.reason,
+                "t": request.state.t,
+                "lang": request.state.lang,
+            },
         )
     except QueryExecutionError as exc:
         return templates.TemplateResponse(
             request=request,
             name="partials/error.html",
-            context={"error": exc.detail},
+            context={
+                "error": exc.detail,
+                "t": request.state.t,
+                "lang": request.state.lang,
+            },
         )
 
 
@@ -138,7 +157,12 @@ async def result_page(request: Request, result_id: uuid.UUID) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="result_page.html",
-        context={"stored": stored, "result_id": result_id},
+        context={
+            "stored": stored,
+            "result_id": result_id,
+            "t": request.state.t,
+            "lang": request.state.lang,
+        },
     )
 
 

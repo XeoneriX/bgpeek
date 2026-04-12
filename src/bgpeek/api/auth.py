@@ -12,6 +12,7 @@ from bgpeek.config import settings
 from bgpeek.core.auth import authenticate, require_role
 from bgpeek.core.jwt import create_token
 from bgpeek.core.ldap import authenticate_ldap
+from bgpeek.core.rate_limit import rate_limit_login
 from bgpeek.db import users as crud
 from bgpeek.db.pool import get_pool
 from bgpeek.models.user import (
@@ -43,7 +44,7 @@ async def login_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"error": None},
+        context={"error": None, "t": request.state.t, "lang": request.state.lang},
     )
 
 
@@ -52,6 +53,7 @@ async def login_submit(
     request: Request,
     username: str = Form(),  # noqa: B008
     password: str = Form(),  # noqa: B008
+    _rl: None = Depends(rate_limit_login),  # noqa: B008
 ) -> Response:
     """Handle web login form submission."""
     # 1. Try local DB
@@ -73,7 +75,11 @@ async def login_submit(
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"error": "Invalid username or password"},
+            context={
+                "error": request.state.t["invalid_credentials"],
+                "t": request.state.t,
+                "lang": request.state.lang,
+            },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -114,7 +120,10 @@ async def whoami(user: User = Depends(authenticate)) -> User:  # noqa: B008
 
 
 @router.post("/api/auth/login", response_model=LoginResponse)
-async def login(body: LoginRequest) -> LoginResponse:
+async def login(
+    body: LoginRequest,
+    _rl: None = Depends(rate_limit_login),  # noqa: B008
+) -> LoginResponse:
     """Authenticate with username/password and receive a JWT token.
 
     Auth chain: local DB → LDAP (if enabled). LDAP users are auto-provisioned.

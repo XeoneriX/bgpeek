@@ -15,7 +15,7 @@
         {% if result.cached %}
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                      bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
-            cached
+            {{ t.cached }}
         </span>
         {% endif %}
 
@@ -25,7 +25,7 @@
 
         {% if result.result_id %}
         <button type="button"
-                onclick="(function(btn){navigator.clipboard.writeText(window.location.origin+'/result/{{ result.result_id }}').then(function(){btn.querySelector('.share-label').textContent='Copied!';setTimeout(function(){btn.querySelector('.share-label').textContent='Share'},1500)});})(this)"
+                onclick="(function(btn){navigator.clipboard.writeText(window.location.origin+'/result/{{ result.result_id }}').then(function(){btn.querySelector('.share-label').textContent='{{ t.copied }}';setTimeout(function(){btn.querySelector('.share-label').textContent='{{ t.share }}'},1500)});})(this)"
                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
                        text-slate-500 dark:text-slate-400
                        hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -34,7 +34,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.54a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.798"/>
             </svg>
-            <span class="share-label">Share</span>
+            <span class="share-label">{{ t.share }}</span>
         </button>
         {% endif %}
     </div>
@@ -55,13 +55,13 @@
                           bg-slate-800 dark:bg-slate-900
                           text-slate-400 dark:text-slate-500">
                 <tr>
-                    <th class="px-4 py-2.5">Prefix</th>
-                    <th class="px-4 py-2.5">Next Hop</th>
-                    <th class="px-4 py-2.5">AS Path</th>
-                    <th class="px-4 py-2.5 text-center">Origin</th>
-                    <th class="px-4 py-2.5 text-right">LP</th>
-                    <th class="px-4 py-2.5 text-right">MED</th>
-                    <th class="px-4 py-2.5">Communities</th>
+                    <th class="px-4 py-2.5">{{ t.prefix }}</th>
+                    <th class="px-4 py-2.5">{{ t.next_hop }}</th>
+                    <th class="px-4 py-2.5">{{ t.as_path }}</th>
+                    <th class="px-4 py-2.5 text-center">{{ t.origin }}</th>
+                    <th class="px-4 py-2.5 text-right">{{ t.lp }}</th>
+                    <th class="px-4 py-2.5 text-right">{{ t.med }}</th>
+                    <th class="px-4 py-2.5">{{ t.communities }}</th>
                 </tr>
             </thead>
             <tbody class="font-mono bg-slate-900 dark:bg-slate-950 text-slate-200">
@@ -95,7 +95,7 @@
     <details class="border-t border-slate-200 dark:border-slate-700">
         <summary class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 cursor-pointer
                         hover:bg-slate-50 dark:hover:bg-slate-800/50 select-none">
-            Show raw output
+            {{ t.show_raw }}
         </summary>
         <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
                     p-4 overflow-x-auto max-h-[400px] overflow-y-auto scrollbar-thin

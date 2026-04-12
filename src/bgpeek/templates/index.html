@@ -11,19 +11,25 @@
         <span class="text-lg font-bold tracking-tight">bgpeek</span>
     </a>
     <div class="flex items-center gap-3">
-        <a href="/history" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">History</a>
-        <a href="/api/docs" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">API</a>
+        <a href="/history" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.history }}</a>
+        <a href="/api/docs" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.api_docs }}</a>
         {% if user %}
         <span class="text-sm text-slate-500 dark:text-slate-400">{{ user.username }}</span>
         <form method="post" action="/auth/logout" class="inline">
             <button type="submit"
                     class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                Logout
+                {{ t.logout }}
             </button>
         </form>
         {% else %}
-        <a href="/auth/login" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Login</a>
+        <a href="/auth/login" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.login }}</a>
         {% endif %}
+        {# ── Language switcher ────────────────────────────────────── #}
+        <span class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+            <a href="?lang=en" class="hover:text-slate-900 dark:hover:text-white transition-colors{% if lang == 'en' %} font-bold text-slate-700 dark:text-slate-200{% endif %}">EN</a>
+            <span class="text-slate-300 dark:text-slate-600">|</span>
+            <a href="?lang=ru" class="hover:text-slate-900 dark:hover:text-white transition-colors{% if lang == 'ru' %} font-bold text-slate-700 dark:text-slate-200{% endif %}">RU</a>
+        </span>
         <button type="button"
                 onclick="bgpeekToggleTheme()"
                 aria-label="Toggle dark mode"
@@ -53,7 +59,7 @@
                   flex flex-col overflow-y-auto">
 
         <div class="p-5 flex-1">
-            <h1 class="text-base font-semibold mb-4">Network Query</h1>
+            <h1 class="text-base font-semibold mb-4">{{ t.network_query }}</h1>
 
             <form id="query-form"
                   hx-post="/query"
@@ -63,14 +69,14 @@
                   class="space-y-4">
 
                 <label class="block">
-                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Location</span>
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ t.location }}</span>
                     <select name="location" required
                             class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
                                    bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
                                    px-3 py-2 text-sm
                                    focus:border-slate-500 focus:ring-1 focus:ring-slate-500
                                    dark:focus:border-slate-400 dark:focus:ring-slate-400">
-                        <option value="">Select device</option>
+                        <option value="">{{ t.select_device }}</option>
                         {% for device in devices %}
                         <option value="{{ device.name }}">
                             {{ device.name }}{% if device.location %} ({{ device.location }}){% endif %}
@@ -80,21 +86,21 @@
                 </label>
 
                 <label class="block">
-                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Query type</span>
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ t.query_type }}</span>
                     <select name="query_type"
                             class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
                                    bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
                                    px-3 py-2 text-sm
                                    focus:border-slate-500 focus:ring-1 focus:ring-slate-500
                                    dark:focus:border-slate-400 dark:focus:ring-slate-400">
-                        <option value="bgp_route">BGP route</option>
-                        <option value="ping">Ping</option>
-                        <option value="traceroute">Traceroute</option>
+                        <option value="bgp_route">{{ t.bgp_route }}</option>
+                        <option value="ping">{{ t.ping }}</option>
+                        <option value="traceroute">{{ t.traceroute }}</option>
                     </select>
                 </label>
 
                 <label class="block">
-                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Target</span>
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ t.target }}</span>
                     <input type="text" name="target" required
                            placeholder="8.8.8.0/24 or 1.1.1.1"
                            class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
@@ -120,7 +126,7 @@
                             <path class="opacity-75" fill="currentColor"
                                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span>Run query</span>
+                        <span>{{ t.run_query }}</span>
                     </button>
 
                     <button id="btn-abort" type="button" disabled
@@ -132,7 +138,7 @@
                                    focus:outline-none focus:ring-2 focus:ring-slate-500
                                    disabled:opacity-30 disabled:cursor-not-allowed
                                    transition-colors">
-                        Abort
+                        {{ t.abort }}
                     </button>
                 </div>
             </form>
@@ -158,7 +164,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M6.115 5.19l.319 1.913A6 6 0 008.11 10.36L9.75 12l-.387.775c-.217.433-.132.956.21 1.298l1.348 1.348c.21.21.329.497.329.795v1.089c0 .426.24.815.622 1.006l.153.076c.433.217.956.132 1.298-.21l.723-.723a8.7 8.7 0 002.288-4.042 1.087 1.087 0 00-.358-1.099l-1.33-1.108c-.251-.21-.582-.299-.905-.245l-1.17.195a1.125 1.125 0 01-.98-.314l-.295-.295a1.125 1.125 0 010-1.591l.13-.132a1.125 1.125 0 011.3-.21l.603.302a.809.809 0 001.086-1.086L14.25 7.5l1.256-.837a4.5 4.5 0 001.528-1.732l.146-.292M6.115 5.19A9 9 0 1017.18 4.64M6.115 5.19A8.965 8.965 0 0112 3c1.929 0 3.716.607 5.18 1.64"/>
             </svg>
-            <p class="text-slate-400 dark:text-slate-500 text-sm">Run a query to see results</p>
+            <p class="text-slate-400 dark:text-slate-500 text-sm">{{ t.empty_state }}</p>
         </div>
     </main>
 </div>

@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     ldap_email_attr: str = "mail"
     ldap_group_attr: str = "memberOf"  # attribute on user entry listing group DNs
 
+    # --- i18n ---
+    default_lang: str = "en"
+
+    # --- Rate limiting ---
+    rate_limit_enabled: bool = True
+    rate_limit_query: int = 30  # queries per minute per IP
+    rate_limit_login: int = 5  # login attempts per minute per IP
+    rate_limit_api: int = 60  # API calls per minute per API key
+
     # --- Results ---
     result_ttl_days: int = Field(
         default=7,

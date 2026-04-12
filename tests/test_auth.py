@@ -313,8 +313,10 @@ class TestWebLogin:
 
     def test_login_page_renders(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         client = TestClient(app)
         with self._patch_templates() as mock_tpl:
@@ -339,8 +341,10 @@ class TestWebLogin:
 
     def test_login_invalid_credentials_returns_401(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with (
             self._patch_api_pool(),

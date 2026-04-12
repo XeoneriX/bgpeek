@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}bgpeek &middot; shared result{% endblock %}
+{% block title %}bgpeek &middot; {{ t.shared_result | lower }}{% endblock %}
 
 {% block body %}
 {# ── Header ─────────────────────────────────────────────────────── #}
@@ -11,7 +11,13 @@
         <span class="text-lg font-bold tracking-tight">bgpeek</span>
     </a>
     <div class="flex items-center gap-3">
-        <a href="/" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">New query</a>
+        <a href="/" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.new_query }}</a>
+        {# ── Language switcher ────────────────────────────────────── #}
+        <span class="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+            <a href="?lang=en" class="hover:text-slate-900 dark:hover:text-white transition-colors{% if lang == 'en' %} font-bold text-slate-700 dark:text-slate-200{% endif %}">EN</a>
+            <span class="text-slate-300 dark:text-slate-600">|</span>
+            <a href="?lang=ru" class="hover:text-slate-900 dark:hover:text-white transition-colors{% if lang == 'ru' %} font-bold text-slate-700 dark:text-slate-200{% endif %}">RU</a>
+        </span>
         <button type="button"
                 onclick="bgpeekToggleTheme()"
                 aria-label="Toggle dark mode"
@@ -33,14 +39,14 @@
     {% if stored %}
     {# ── Meta info ───────────────────────────────────────────────── #}
     <div class="mb-4 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-        <span>Shared result</span>
+        <span>{{ t.shared_result }}</span>
         <span class="text-slate-300 dark:text-slate-600">&middot;</span>
         <span>{{ stored.created_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
         <span class="text-slate-300 dark:text-slate-600">&middot;</span>
-        <span>Expires {{ stored.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
+        <span>{{ t.expires }} {{ stored.expires_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>
         {% if stored.username %}
         <span class="text-slate-300 dark:text-slate-600">&middot;</span>
-        <span>by {{ stored.username }}</span>
+        <span>{{ t.by }} {{ stored.username }}</span>
         {% endif %}
     </div>
 
@@ -55,15 +61,15 @@
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
         </svg>
-        <h2 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">Result not found</h2>
+        <h2 class="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">{{ t.result_not_found }}</h2>
         <p class="text-slate-400 dark:text-slate-500 text-sm mb-6">
-            This result may have expired or the link is invalid. Results are kept for a limited time.
+            {{ t.result_expired }}
         </p>
         <a href="/"
            class="inline-flex items-center gap-2 rounded-md bg-slate-900 dark:bg-slate-100
                   text-white dark:text-slate-900 px-4 py-2 text-sm font-medium
                   hover:bg-slate-800 dark:hover:bg-white transition-colors">
-            Run a new query
+            {{ t.run_new_query }}
         </a>
     </div>
     {% endif %}

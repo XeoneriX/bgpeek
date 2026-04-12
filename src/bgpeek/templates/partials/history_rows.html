@@ -24,12 +24,12 @@
         {% if row.cached %}
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                      bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
-            cached
+            {{ t.cached }}
         </span>
         {% else %}
         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                      bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
-            live
+            {{ t.live }}
         </span>
         {% endif %}
     </td>
@@ -38,13 +38,13 @@
             <a href="/result/{{ row.id }}"
                class="text-xs font-medium text-slate-600 dark:text-slate-400
                       hover:text-slate-900 dark:hover:text-white transition-colors">
-                View
+                {{ t.view }}
             </a>
             <button type="button"
-                    onclick="navigator.clipboard.writeText(window.location.origin+'/result/{{ row.id }}').then(function(){this.textContent='Copied!';var b=this;setTimeout(function(){b.textContent='Share'},1500)}.bind(this))"
+                    onclick="navigator.clipboard.writeText(window.location.origin+'/result/{{ row.id }}').then(function(){this.textContent='{{ t.copied }}';var b=this;setTimeout(function(){b.textContent='{{ t.share }}'},1500)}.bind(this))"
                     class="text-xs font-medium text-slate-500 dark:text-slate-400
                            hover:text-slate-900 dark:hover:text-white transition-colors">
-                Share
+                {{ t.share }}
             </button>
         </div>
     </td>
@@ -67,7 +67,7 @@
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
             </span>
-            Load more
+            {{ t.load_more }}
         </button>
     </td>
 </tr>
