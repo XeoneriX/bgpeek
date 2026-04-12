@@ -1,0 +1,24 @@
+{% if lg_links %}
+<div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">
+        {{ t.other_looking_glasses }}
+    </h2>
+    <div class="flex flex-wrap gap-1.5">
+        {% for link in lg_links %}
+        <a href="{{ link.url }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
+                  bg-slate-100 dark:bg-slate-700
+                  text-slate-600 dark:text-slate-300
+                  hover:bg-slate-200 dark:hover:bg-slate-600
+                  transition-colors">
+            {{ link.name }}
+            <svg class="w-3 h-3 ml-1 opacity-50" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+            </svg>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

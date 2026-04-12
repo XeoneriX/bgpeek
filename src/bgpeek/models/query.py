@@ -38,6 +38,7 @@ class BGPRoute(BaseModel):
     local_pref: int | None = None
     communities: list[str] = Field(default_factory=list)
     best: bool = False
+    rpki_status: str | None = None
 
 
 class QueryResponse(BaseModel):
@@ -52,6 +53,7 @@ class QueryResponse(BaseModel):
     runtime_ms: int
     cached: bool = False
     parsed_routes: list[BGPRoute] = Field(default_factory=list)
+    resolved_target: str | None = None
     result_id: str | None = None
 
 

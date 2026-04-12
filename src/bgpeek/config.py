@@ -77,6 +77,15 @@ class Settings(BaseSettings):
         description="How long shared query results are kept (days)",
     )
 
+    # --- RPKI ---
+    rpki_enabled: bool = True
+    rpki_api_url: str = "https://rpki.cloudflare.com/api/v1/validity"
+    rpki_timeout: int = 5  # seconds
+    rpki_cache_ttl: int = 3600  # 1 hour
+
+    # --- LG links ---
+    lg_links: str = ""  # JSON: [{"name": "RETN", "url": "https://lg.retn.net"}, ...]
+
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
     static_dir: Path = Path(__file__).parent / "static"

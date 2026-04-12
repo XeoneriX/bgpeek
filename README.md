@@ -1,5 +1,7 @@
 # bgpeek
 
+[![CI](https://github.com/xeonerix/bgpeek/actions/workflows/ci.yml/badge.svg)](https://github.com/xeonerix/bgpeek/actions/workflows/ci.yml)
+
 Open-source looking glass for ISPs and IX operators.
 
 ## Features

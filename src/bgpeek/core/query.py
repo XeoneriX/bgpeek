@@ -10,14 +10,16 @@ import structlog
 from bgpeek.core.bgp_parser import parse_bgp_output
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
+from bgpeek.core.dns import DNSResolutionError, resolve_target
 from bgpeek.core.output_filter import filter_route_text
+from bgpeek.core.rpki import validate_routes
 from bgpeek.core.ssh import SSHClient, SSHError
 from bgpeek.core.validators import TargetValidationError, validate_target
 from bgpeek.db import devices as device_crud
 from bgpeek.db.audit import log_audit
 from bgpeek.db.pool import get_pool
 from bgpeek.models.audit import AuditAction, AuditEntryCreate
-from bgpeek.models.query import QueryRequest, QueryResponse, QueryType
+from bgpeek.models.query import BGPRoute, QueryRequest, QueryResponse, QueryType
 from bgpeek.models.user import UserRole
 
 log = structlog.get_logger(__name__)
@@ -83,10 +85,18 @@ async def execute_query(
         device_name=request.device_name,
     )
 
+    resolved_target: str | None = None
     try:
+        # 0. Resolve hostname to IP if needed (ping/trace/bgp all benefit)
+        resolution = await resolve_target(request.target)
+        effective_target = resolution.resolved
+        if resolution.is_hostname:
+            resolved_target = resolution.resolved
+            audit_entry.query_target = f"{resolution.original} ({resolution.resolved})"
+
         # 1. Validate target (only for BGP — ping/trace accept any reachable target)
         if request.query_type == QueryType.BGP_ROUTE:
-            validate_target(request.target)
+            validate_target(effective_target)
 
         # 1b. Check cache
         cached = await get_cached(request)
@@ -117,8 +127,8 @@ async def execute_query(
             )
         audit_entry.device_id = device.id
 
-        # 3. Build command
-        command = build_command(device.platform, request.query_type, request.target)
+        # 3. Build command (use resolved IP for the actual SSH command)
+        command = build_command(device.platform, request.query_type, effective_target)
 
         # 4. Execute SSH
         async with SSHClient(
@@ -146,9 +156,11 @@ async def execute_query(
         await log_audit(pool, audit_entry)
 
         # 7. Parse structured BGP routes (best-effort)
-        parsed_routes = []
+        parsed_routes: list[BGPRoute] = []
         if request.query_type == QueryType.BGP_ROUTE:
             parsed_routes = parse_bgp_output(filtered_output, platform=device.platform)
+            if parsed_routes:
+                parsed_routes = await validate_routes(parsed_routes)
 
         # 8. Response
         response = QueryResponse(
@@ -160,6 +172,7 @@ async def execute_query(
             filtered_output=filtered_output,
             runtime_ms=runtime_ms,
             parsed_routes=parsed_routes,
+            resolved_target=resolved_target,
         )
 
         # 9. Store in cache
@@ -173,6 +186,17 @@ async def execute_query(
         audit_entry.runtime_ms = runtime_ms
         await log_audit(pool, audit_entry)
         raise
+
+    except DNSResolutionError as exc:
+        runtime_ms = int((time.monotonic() - start) * 1000)
+        audit_entry.error_message = str(exc)
+        audit_entry.runtime_ms = runtime_ms
+        await log_audit(pool, audit_entry)
+        raise QueryExecutionError(
+            detail=str(exc),
+            target=request.target,
+            device_name=request.device_name,
+        ) from exc
 
     except (UnsupportedPlatformError, SSHError, QueryExecutionError) as exc:
         runtime_ms = int((time.monotonic() - start) * 1000)

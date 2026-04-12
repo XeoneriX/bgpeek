@@ -1,5 +1,8 @@
 """bgpeek FastAPI application entry point."""
 
+from __future__ import annotations
+
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -27,6 +30,28 @@ from bgpeek.models.user import User
 log = structlog.get_logger()
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
+
+
+def _parse_lg_links() -> list[dict[str, str]]:
+    """Parse the ``lg_links`` JSON config into a list of link dicts."""
+    raw = settings.lg_links.strip()
+    if not raw:
+        return []
+    try:
+        links = json.loads(raw)
+    except json.JSONDecodeError:
+        log.warning("invalid lg_links JSON, ignoring", raw=raw)
+        return []
+    if not isinstance(links, list):
+        return []
+    result: list[dict[str, str]] = []
+    for entry in links:
+        if isinstance(entry, dict) and "name" in entry and "url" in entry:
+            result.append({"name": str(entry["name"]), "url": str(entry["url"])})
+    return result
+
+
+_lg_links: list[dict[str, str]] = _parse_lg_links()
 templates.env.filters["timeago"] = timeago
 
 _LANG_COOKIE = "bgpeek_lang"
@@ -121,6 +146,7 @@ async def index(
             "user": user,
             "t": request.state.t,
             "lang": request.state.lang,
+            "lg_links": _lg_links,
         },
     )
 
