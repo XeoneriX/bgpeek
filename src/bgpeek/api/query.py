@@ -15,6 +15,7 @@ from bgpeek.core.auth import authenticate, optional_auth
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.rate_limit import rate_limit_query
+from bgpeek.core.response_filter import filter_response
 from bgpeek.core.validators import TargetValidationError
 from bgpeek.db.pool import get_pool
 from bgpeek.db.results import get_result, list_results, save_result
@@ -61,7 +62,7 @@ async def api_query(
         )
         result_id = await _persist_result(result, caller.id, caller.username)
         result.result_id = str(result_id)
-        return result
+        return filter_response(result, caller.role.value)
     except TargetValidationError as exc:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -117,11 +118,12 @@ async def htmx_query(
             caller.username if caller else None,
         )
         result.result_id = str(result_id)
+        filtered = filter_response(result, caller.role.value if caller else None)
         return templates.TemplateResponse(
             request=request,
             name="partials/result.html",
             context={
-                "result": result,
+                "result": filtered,
                 "t": request.state.t,
                 "lang": request.state.lang,
             },
@@ -173,6 +175,7 @@ async def api_multi_query(
     for result in response.results:
         result_id = await _persist_result(result, caller.id, caller.username)
         result.result_id = str(result_id)
+    response.results = [filter_response(r, caller.role.value) for r in response.results]
     return response
 
 
@@ -230,6 +233,9 @@ async def htmx_multi_query(
             caller.username if caller else None,
         )
         result.result_id = str(result_id)
+
+    role = caller.role.value if caller else None
+    response.results = [filter_response(r, role) for r in response.results]
 
     return templates.TemplateResponse(
         request=request,

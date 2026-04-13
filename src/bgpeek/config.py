@@ -120,6 +120,12 @@ class Settings(BaseSettings):
         description="If True, all devices are visible to public users unless restricted",
     )
 
+    # --- Output visibility ---
+    public_output_level: str = Field(
+        default="restricted",
+        description="Output detail level for public/guest users: 'restricted' (hide communities/LP/MED, mask RFC1918), 'standard' (all parsed fields, no raw), 'full' (same as NOC)",
+    )
+
     # --- SSH ---
     ssh_username: str = Field(default="looking-glass", description="Default SSH username for devices (fallback when no credential assigned)")
     keys_dir: Path = Field(default=Path("/etc/bgpeek/keys"), description="Directory containing SSH private key files")

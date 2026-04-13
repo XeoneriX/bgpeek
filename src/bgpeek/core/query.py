@@ -17,7 +17,7 @@ from bgpeek.core.dns import DNSResolutionError, resolve_target
 from bgpeek.core.output_filter import filter_route_text
 from bgpeek.core.rpki import validate_routes
 from bgpeek.core.ssh import SSHClient, SSHError
-from bgpeek.core.validators import TargetValidationError, validate_target
+from bgpeek.core.validators import TargetValidationError, is_bogon, parse_target, validate_target
 from bgpeek.db import devices as device_crud
 from bgpeek.db.audit import log_audit
 from bgpeek.db.credentials import get_credential_for_device
@@ -99,9 +99,23 @@ async def execute_query(
             resolved_target = resolution.resolved
             audit_entry.query_target = f"{resolution.original} ({resolution.resolved})"
 
-        # 1. Validate target (only for BGP — ping/trace accept any reachable target)
+        # 1. Validate target
         if request.query_type == QueryType.BGP_ROUTE:
             validate_target(effective_target)
+        elif not _role_bypasses_filter(user_role):
+            # Public users cannot ping/trace private (RFC1918/bogon) addresses
+            try:
+                net = parse_target(effective_target)
+                bogon = is_bogon(net)
+                if bogon is not None:
+                    raise TargetValidationError(
+                        f"private address ({bogon}) — not available for public queries",
+                        effective_target,
+                    )
+            except TargetValidationError:
+                raise
+            except ValueError:
+                pass  # not a valid IP, DNS resolution may have failed
 
         # 1b. Check cache
         cached = await get_cached(request)

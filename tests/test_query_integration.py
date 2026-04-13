@@ -147,8 +147,8 @@ async def test_query_device_disabled(pool: asyncpg.Pool) -> None:
         )
 
 
-async def test_query_ping_skips_validation(pool: asyncpg.Pool) -> None:
-    """Ping/traceroute do not validate target as prefix (no bogon check)."""
+async def test_query_ping_private_ip_allowed_for_noc(pool: asyncpg.Pool) -> None:
+    """NOC/admin users can ping private (RFC1918) addresses."""
     await _seed_device(pool)
 
     with (
@@ -157,10 +157,22 @@ async def test_query_ping_skips_validation(pool: asyncpg.Pool) -> None:
     ):
         result = await execute_query(
             QueryRequest(device_name="rt1", query_type=QueryType.PING, target="10.0.0.1"),
+            user_role="noc",
         )
 
     assert result.query_type == QueryType.PING
     assert "10.0.0.1" in result.filtered_output
+
+
+async def test_query_ping_private_ip_blocked_for_public(pool: asyncpg.Pool) -> None:
+    """Public users cannot ping private (RFC1918) addresses."""
+    await _seed_device(pool)
+
+    with pytest.raises(TargetValidationError, match="private address"):
+        await execute_query(
+            QueryRequest(device_name="rt1", query_type=QueryType.PING, target="10.0.0.1"),
+            user_role="public",
+        )
 
 
 async def test_query_ping_no_output_filter(pool: asyncpg.Pool) -> None:
