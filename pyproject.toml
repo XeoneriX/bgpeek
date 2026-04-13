@@ -24,7 +24,7 @@ classifiers = [
 
 dependencies = [
     # Web framework
-    "fastapi>=0.115.0",
+    "fastapi>=0.135.3",
     "uvicorn[standard]>=0.32.0",
     "h11>=0.16.0",                    # CVE fix: HTTP request smuggling
     # Validation & config
