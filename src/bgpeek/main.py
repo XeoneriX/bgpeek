@@ -366,7 +366,7 @@ async def health(deep: bool = False) -> dict[str, object]:
 async def index(
     request: Request,
     user: User | None = Depends(optional_auth),  # noqa: B008
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     """Main looking glass form — loads devices from DB for the dropdown."""
     if user is None:
         if settings.access_mode == "closed":
@@ -412,7 +412,7 @@ async def history(
     offset: int = 0,
     partial: int = 0,
     user: User | None = Depends(optional_auth),  # noqa: B008
-) -> HTMLResponse | RedirectResponse:
+) -> Response:
     """Query history page with offset-based pagination."""
     if user is None:
         if settings.access_mode == "closed":
