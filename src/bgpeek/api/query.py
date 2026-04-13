@@ -74,6 +74,13 @@ router = APIRouter(tags=["query"])
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
+def _real_user_id(user: User | None) -> int | None:
+    """Return user.id for real DB users, None for guest/anonymous."""
+    if user is None or user.id == 0:
+        return None
+    return user.id
+
+
 def _ssh_key_path() -> Path | None:
     """Return the SSH private key path if it exists in config_dir."""
     key = settings.config_dir / "id_rsa"
@@ -93,12 +100,12 @@ async def api_query(
             body,
             source_ip=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            user_id=caller.id,
+            user_id=_real_user_id(caller),
             username=caller.username,
             user_role=caller.role.value,
             ssh_key_path=_ssh_key_path(),
         )
-        result_id = await _persist_result(result, caller.id, caller.username)
+        result_id = await _persist_result(result, _real_user_id(caller), caller.username)
         result.result_id = str(result_id)
         return filter_response(result, caller.role.value)
     except TargetValidationError as exc:
@@ -158,14 +165,14 @@ async def htmx_query(
             body,
             source_ip=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            user_id=caller.id if caller else None,
+            user_id=_real_user_id(caller),
             username=caller.username if caller else None,
             user_role=caller.role.value if caller else None,
             ssh_key_path=_ssh_key_path(),
         )
         result_id = await _persist_result(
             result,
-            caller.id if caller else None,
+            _real_user_id(caller),
             caller.username if caller else None,
         )
         result.result_id = str(result_id)
@@ -218,13 +225,13 @@ async def api_multi_query(
         body,
         source_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        user_id=caller.id,
+        user_id=_real_user_id(caller),
         username=caller.username,
         user_role=caller.role.value,
         ssh_key_path=_ssh_key_path(),
     )
     for result in response.results:
-        result_id = await _persist_result(result, caller.id, caller.username)
+        result_id = await _persist_result(result, _real_user_id(caller), caller.username)
         result.result_id = str(result_id)
     response.results = [filter_response(r, caller.role.value) for r in response.results]
     return response
@@ -285,7 +292,7 @@ async def htmx_multi_query(
         body,
         source_ip=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        user_id=caller.id if caller else None,
+        user_id=_real_user_id(caller),
         username=caller.username if caller else None,
         user_role=caller.role.value if caller else None,
         ssh_key_path=_ssh_key_path(),
@@ -293,7 +300,7 @@ async def htmx_multi_query(
     for result in response.results:
         result_id = await _persist_result(
             result,
-            caller.id if caller else None,
+            _real_user_id(caller),
             caller.username if caller else None,
         )
         result.result_id = str(result_id)
@@ -351,7 +358,7 @@ async def api_list_results(
     caller: User = Depends(authenticate),  # noqa: B008
 ) -> list[StoredResult]:
     """List recent results for the authenticated user."""
-    return await list_results(get_pool(), user_id=caller.id)
+    return await list_results(get_pool(), user_id=_real_user_id(caller))
 
 
 # ---------------------------------------------------------------------------
