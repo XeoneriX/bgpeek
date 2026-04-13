@@ -1,6 +1,6 @@
 [project]
 name = "bgpeek"
-version = "1.0.0"
+version = "1.0.1"
 description = "Open-source looking glass for ISPs and IX operators"
 readme = "README.md"
 license = { text = "Apache-2.0" }
