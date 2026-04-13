@@ -127,7 +127,13 @@ async def login_submit(
 async def logout() -> RedirectResponse:
     """Clear the auth cookie and redirect to the main page."""
     response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    response.delete_cookie(key=_COOKIE_NAME, path="/")
+    response.delete_cookie(
+        key=_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=False,
+    )
     return response
 
 

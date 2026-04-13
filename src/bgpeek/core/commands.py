@@ -8,7 +8,7 @@ from bgpeek.models.query import QueryType
 # {target} is replaced with the actual IP/prefix.
 _COMMAND_TABLE: dict[tuple[str, QueryType], str] = {
     # --- Juniper Junos ---
-    ("juniper_junos", QueryType.BGP_ROUTE): "show route protocol bgp table inet.0 {target} detail",
+    ("juniper_junos", QueryType.BGP_ROUTE): "show route protocol bgp table inet.0 {target} exact detail",
     ("juniper_junos", QueryType.PING): "ping {target} count 5",
     # NOTE: `traceroute monitor` may need expect_string in SSHClient.send_command
     # due to non-standard output format (interactive summary table).
