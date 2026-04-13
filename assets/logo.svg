@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#0f172a"/>
+  <circle cx="256" cy="256" r="236" fill="none" stroke="url(#g1)" stroke-width="3" opacity="0.4"/>
+
+  <!-- Network nodes and paths (BGP routes) -->
+  <!-- Left node cluster -->
+  <circle cx="100" cy="180" r="8" fill="#6366f1" opacity="0.6"/>
+  <circle cx="80" cy="280" r="6" fill="#6366f1" opacity="0.4"/>
+  <circle cx="120" cy="340" r="7" fill="#6366f1" opacity="0.5"/>
+
+  <!-- Right node cluster -->
+  <circle cx="420" cy="160" r="7" fill="#06b6d4" opacity="0.5"/>
+  <circle cx="430" cy="270" r="6" fill="#06b6d4" opacity="0.4"/>
+  <circle cx="400" cy="350" r="8" fill="#06b6d4" opacity="0.6"/>
+
+  <!-- Route lines converging to center eye -->
+  <line x1="100" y1="180" x2="200" y2="240" stroke="#6366f1" stroke-width="1.5" opacity="0.3"/>
+  <line x1="80" y1="280" x2="200" y2="260" stroke="#6366f1" stroke-width="1.5" opacity="0.3"/>
+  <line x1="120" y1="340" x2="210" y2="280" stroke="#6366f1" stroke-width="1.5" opacity="0.3"/>
+  <line x1="420" y1="160" x2="310" y2="240" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="430" y1="270" x2="310" y2="260" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+  <line x1="400" y1="350" x2="300" y2="280" stroke="#06b6d4" stroke-width="1.5" opacity="0.3"/>
+
+  <!-- Eye shape (looking glass / peek) -->
+  <!-- Upper eyelid -->
+  <path d="M 140 256 Q 256 140 372 256" fill="none" stroke="url(#g2)" stroke-width="4" stroke-linecap="round"/>
+  <!-- Lower eyelid -->
+  <path d="M 140 256 Q 256 372 372 256" fill="none" stroke="url(#g2)" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Iris -->
+  <circle cx="256" cy="256" r="52" fill="none" stroke="url(#g1)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="38" fill="url(#g1)" opacity="0.15"/>
+
+  <!-- Pupil -->
+  <circle cx="256" cy="256" r="22" fill="url(#g1)"/>
+
+  <!-- Light reflection -->
+  <circle cx="246" cy="246" r="6" fill="white" opacity="0.7"/>
+  <circle cx="264" cy="252" r="3" fill="white" opacity="0.4"/>
+
+  <!-- Text: BGPeek -->
+  <text x="256" y="440" text-anchor="middle" font-family="'SF Mono', 'Fira Code', 'JetBrains Mono', monospace" font-weight="700" font-size="48" fill="url(#g2)" letter-spacing="4">
+    BGPeek
+  </text>
+</svg>
