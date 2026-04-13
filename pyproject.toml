@@ -37,6 +37,7 @@ dependencies = [
     # Database
     "asyncpg>=0.30.0",
     "yoyo-migrations>=9.0.0",         # SQL migrations runner
+    "psycopg[binary]>=3.2.0",         # PostgreSQL driver for yoyo-migrations
     # Cache
     "redis[hiredis]>=5.0",
     # SSH for routers

@@ -130,7 +130,7 @@ async def test_send_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
     await client.connect()
     result = await client.send_command("show version")
     assert result == "output text"
-    mock_conn.send_command.assert_called_once_with("show version")
+    mock_conn.send_command.assert_called_once_with("show version", read_timeout=2)
 
 
 async def test_send_command_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -170,7 +170,7 @@ async def test_send_command_expect_string(monkeypatch: pytest.MonkeyPatch) -> No
     client = _make_client()
     await client.connect()
     await client.send_command("show version", expect_string=r"#\s*$")
-    mock_conn.send_command.assert_called_once_with("show version", expect_string=r"#\s*$")
+    mock_conn.send_command.assert_called_once_with("show version", read_timeout=2, expect_string=r"#\s*$")
 
 
 # ---------- disconnect ----------

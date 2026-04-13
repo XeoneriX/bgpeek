@@ -61,5 +61,5 @@ EXPOSE 8000
 
 USER bgpeek
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["tini", "--"]
 CMD ["python3", "-m", "bgpeek.main"]

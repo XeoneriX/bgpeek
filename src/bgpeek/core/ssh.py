@@ -153,7 +153,7 @@ class SSHClient:
         logger.debug("ssh command sent", host=self._host, command=command)
 
         def _run() -> str:
-            kwargs: dict[str, Any] = {}
+            kwargs: dict[str, Any] = {"read_timeout": effective_timeout}
             if expect_string is not None:
                 kwargs["expect_string"] = expect_string
             result = connection.send_command(command, **kwargs)

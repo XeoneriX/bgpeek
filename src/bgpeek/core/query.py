@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import time
 from pathlib import Path
 
@@ -139,8 +140,21 @@ async def execute_query(
                 device_name=request.device_name,
             )
 
-        # 3. Build command (use resolved IP for the actual SSH command)
-        command = build_command(device.platform, request.query_type, effective_target)
+        # 3. Determine source IP based on target address family
+        device_source_ip: str | None = None
+        try:
+            addr = ipaddress.ip_address(effective_target.split("/")[0])
+            if addr.version == 4:
+                device_source_ip = device.source4
+            else:
+                device_source_ip = device.source6
+        except ValueError:
+            pass  # not a valid IP (shouldn't happen after DNS resolution)
+
+        # Build command (use resolved IP for the actual SSH command)
+        command = build_command(
+            device.platform, request.query_type, effective_target, source_ip=device_source_ip
+        )
 
         # 4. Resolve SSH credentials: device-level → global default → fail
         ssh_user = settings.ssh_username

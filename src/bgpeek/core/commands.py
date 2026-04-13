@@ -32,6 +32,17 @@ _COMMAND_TABLE: dict[tuple[str, QueryType], str] = {
     ("huawei", QueryType.TRACEROUTE): "tracert {target}",
 }
 
+# Per-platform source argument format for ping/traceroute.
+# Only applied when source_ip is provided and query_type is PING or TRACEROUTE.
+_SOURCE_FORMAT: dict[str, str] = {
+    "juniper_junos": " source {source}",
+    "cisco_ios": " source {source}",
+    "cisco_xe": " source {source}",
+    "cisco_xr": " source {source}",
+    "arista_eos": " source {source}",
+    "huawei": " -a {source}",
+}
+
 
 class UnsupportedPlatformError(ValueError):
     """Raised when no command mapping exists for a platform + query type."""
@@ -42,13 +53,18 @@ class UnsupportedPlatformError(ValueError):
         super().__init__(f"no command defined for ({platform}, {query_type.value})")
 
 
-def build_command(platform: str, query_type: QueryType, target: str) -> str:
+def build_command(platform: str, query_type: QueryType, target: str, *, source_ip: str | None = None) -> str:
     """Return the CLI command string for a given platform, query type, and target."""
     key = (platform, query_type)
     template = _COMMAND_TABLE.get(key)
     if template is None:
         raise UnsupportedPlatformError(platform, query_type)
-    return template.format(target=target)
+    cmd = template.format(target=target)
+    if source_ip and query_type in (QueryType.PING, QueryType.TRACEROUTE):
+        fmt = _SOURCE_FORMAT.get(platform)
+        if fmt:
+            cmd += fmt.format(source=source_ip)
+    return cmd
 
 
 def supported_platforms() -> list[str]:
