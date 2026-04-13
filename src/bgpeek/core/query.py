@@ -9,6 +9,7 @@ import structlog
 
 from bgpeek.config import settings
 from bgpeek.core.bgp_parser import parse_bgp_output
+from bgpeek.core.circuit_breaker import is_device_available, record_failure, record_success
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
 from bgpeek.core.dns import DNSResolutionError, resolve_target
@@ -129,6 +130,14 @@ async def execute_query(
             )
         audit_entry.device_id = device.id
 
+        # 2b. Circuit breaker check
+        if not await is_device_available(device.name):
+            raise QueryExecutionError(
+                f"device {device.name!r} is temporarily unavailable (circuit breaker open)",
+                target=request.target,
+                device_name=request.device_name,
+            )
+
         # 3. Build command (use resolved IP for the actual SSH command)
         command = build_command(device.platform, request.query_type, effective_target)
 
@@ -148,6 +157,8 @@ async def execute_query(
             timeout=settings.ssh_timeout,
         ) as ssh:
             raw_output = await ssh.send_command(command, timeout=cmd_timeout)
+
+        await record_success(device.name)
 
         # 5. Filter output (privileged roles bypass prefix filtering)
         if request.query_type == QueryType.BGP_ROUTE and not _role_bypasses_filter(user_role):
@@ -221,6 +232,8 @@ async def execute_query(
         ) from exc
 
     except (UnsupportedPlatformError, SSHError, QueryExecutionError) as exc:
+        if isinstance(exc, SSHError):
+            await record_failure(request.device_name)
         runtime_ms = int((time.monotonic() - start) * 1000)
         audit_entry.error_message = str(exc)
         audit_entry.runtime_ms = runtime_ms

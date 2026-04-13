@@ -31,7 +31,7 @@ from bgpeek.core.webhooks import shutdown as shutdown_webhooks
 from bgpeek.db import devices as device_crud
 from bgpeek.db.pool import close_pool, get_pool, init_pool
 from bgpeek.db.results import list_results
-from bgpeek.models.user import User
+from bgpeek.models.user import User, UserRole
 
 log = structlog.get_logger()
 
@@ -272,8 +272,9 @@ async def index(
     user: User | None = Depends(optional_auth),  # noqa: B008
 ) -> HTMLResponse:
     """Main looking glass form — loads devices from DB for the dropdown."""
+    include_restricted = user is not None and user.role in (UserRole.ADMIN, UserRole.NOC)
     try:
-        devices = await device_crud.list_devices(get_pool(), enabled_only=True)
+        devices = await device_crud.list_devices(get_pool(), enabled_only=True, include_restricted=include_restricted)
     except RuntimeError:
         devices = []
     return templates.TemplateResponse(

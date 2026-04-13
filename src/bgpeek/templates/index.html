@@ -254,6 +254,16 @@
     empty.style.display = results.children.length ? "none" : "";
   });
   observer.observe(results, { childList: true });
+
+  /* ── Limit results DOM to prevent unbounded growth ────────── */
+  var MAX_RESULTS = 20;
+  document.body.addEventListener("htmx:afterSwap", function (evt) {
+    if (evt.detail.target === results) {
+      while (results.children.length > MAX_RESULTS) {
+        results.removeChild(results.lastElementChild);
+      }
+    }
+  });
 })();
 </script>
 {% endblock %}

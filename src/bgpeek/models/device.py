@@ -20,6 +20,7 @@ class DeviceBase(BaseModel):
     description: str | None = None
     location: str | None = None
     enabled: bool = True
+    restricted: bool = False
 
 
 class DeviceCreate(DeviceBase):
@@ -38,6 +39,7 @@ class DeviceUpdate(BaseModel):
     description: str | None = None
     location: str | None = None
     enabled: bool | None = None
+    restricted: bool | None = None
 
 
 class Device(DeviceBase):
