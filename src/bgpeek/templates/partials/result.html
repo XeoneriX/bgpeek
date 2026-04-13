@@ -114,7 +114,8 @@
                             {{ t.rpki_not_found }}
                         </span>
                         {% elif route.rpki_status == 'unknown' %}
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/40 text-amber-300">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/40 text-amber-300"
+                              title="{{ t.rpki_unknown }}">
                             ?
                         </span>
                         {% else %}

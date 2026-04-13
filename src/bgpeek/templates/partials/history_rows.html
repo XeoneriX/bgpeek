@@ -41,7 +41,7 @@
                 {{ t.view }}
             </a>
             <button type="button"
-                    onclick="navigator.clipboard.writeText(window.location.origin+'/result/{{ row.id }}').then(function(){this.textContent='{{ t.copied }}';var b=this;setTimeout(function(){b.textContent='{{ t.share }}'},1500)}.bind(this))"
+                    onclick="bgpeekCopyText(window.location.origin+'/result/{{ row.id }}').then(function(){var b=this;b.textContent='{{ t.copied }}';setTimeout(function(){b.textContent='{{ t.share }}'},1500)}.bind(this))"
                     class="text-xs font-medium text-slate-500 dark:text-slate-400
                            hover:text-slate-900 dark:hover:text-white transition-colors">
                 {{ t.share }}
