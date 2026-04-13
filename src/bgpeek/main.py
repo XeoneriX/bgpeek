@@ -199,6 +199,20 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add standard security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if settings.cookie_secure:  # implies HTTPS
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
 # ---------------------------------------------------------------------------
 # Lifespan
 # ---------------------------------------------------------------------------
@@ -210,6 +224,17 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     global _cleanup_task
 
     log.info("bgpeek starting", version=__version__, host=settings.host, port=settings.port)
+
+    # Security: refuse to start with default secrets
+    _INSECURE_DEFAULTS = {"change-me-in-production", "change-me-session-secret"}
+    if not settings.debug:
+        if settings.jwt_secret in _INSECURE_DEFAULTS:
+            log.critical("BGPEEK_JWT_SECRET is set to the default value — refusing to start. Set a strong secret.")
+            raise SystemExit(1)
+        if settings.session_secret in _INSECURE_DEFAULTS:
+            log.critical("BGPEEK_SESSION_SECRET is set to the default value — refusing to start. Set a strong secret.")
+            raise SystemExit(1)
+
     await init_pool(
         settings.database_url,
         min_size=settings.db_pool_min,
@@ -266,8 +291,12 @@ app = FastAPI(
     description="Open-source looking glass for ISPs and IX operators",
     version=__version__,
     lifespan=lifespan,
+    docs_url="/api/docs" if settings.debug else None,
+    redoc_url=None,
+    openapi_url="/api/openapi.json" if settings.debug else None,
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(I18nMiddleware)
 
@@ -275,7 +304,8 @@ app.add_middleware(I18nMiddleware)
 setup_oidc(app)
 
 # Prometheus metrics
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+if settings.metrics_enabled:
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.mount(
     "/static",
@@ -308,8 +338,8 @@ async def health(deep: bool = False) -> dict[str, object]:
         pool = get_pool()
         await pool.fetchval("SELECT 1")
         result["database"] = "ok"
-    except Exception as exc:
-        result["database"] = f"error: {exc}"
+    except Exception:
+        result["database"] = "error"
         result["status"] = "degraded"
 
     # Redis check
@@ -317,8 +347,8 @@ async def health(deep: bool = False) -> dict[str, object]:
         r = get_redis()
         await r.ping()
         result["redis"] = "ok"
-    except Exception as exc:
-        result["redis"] = f"error: {exc}"
+    except Exception:
+        result["redis"] = "error"
         result["status"] = "degraded"
 
     return result

@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}bgpeek{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- TODO: replace Tailwind CDN with pre-built CSS for production -->
+    <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
       };
     </script>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="/static/js/htmx.min.js"></script>
     <script>
       /* Apply dark mode before paint to prevent flash. */
       (function () {

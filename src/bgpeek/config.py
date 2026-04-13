@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # --- Session ---
     session_secret: str = "change-me-session-secret"  # noqa: S105
 
+    # --- Cookies ---
+    cookie_secure: bool = Field(
+        default=False,
+        description="Set True when behind HTTPS proxy. Cookies will only be sent over HTTPS.",
+    )
+
     # --- LDAP ---
     ldap_enabled: bool = False
     ldap_server: str = ""  # e.g. "ldap://ldap.example.com:389" or "ldaps://..."
@@ -91,12 +97,19 @@ class Settings(BaseSettings):
     # --- i18n ---
     default_lang: str = "en"
 
+    # --- Metrics ---
+    metrics_enabled: bool = Field(default=True, description="Expose /metrics Prometheus endpoint")
+
     # --- Rate limiting ---
     rate_limit_enabled: bool = True
     rate_limit_query: int = 30  # queries per minute per IP
     rate_limit_login: int = 5  # login attempts per minute per IP
     rate_limit_api: int = 60  # API calls per minute per API key
     rate_limit_guest: int = 10  # queries per minute per IP for guest/anonymous
+    trusted_proxies: str = Field(
+        default="",
+        description="Comma-separated trusted proxy IPs. When set, X-Forwarded-For is used for rate limiting.",
+    )
 
     # --- Parallel queries ---
     max_parallel_queries: int = Field(

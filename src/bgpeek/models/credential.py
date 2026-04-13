@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CredentialBase(BaseModel):
@@ -16,6 +16,15 @@ class CredentialBase(BaseModel):
     username: str = Field(min_length=1, max_length=255)
     key_name: str | None = None
     password: str | None = None
+
+    @field_validator("key_name")
+    @classmethod
+    def validate_key_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if ".." in v or "/" in v or "\\" in v or "\x00" in v:
+            raise ValueError("key_name must be a plain filename without path separators")
+        return v
 
 
 class CredentialCreate(CredentialBase):
@@ -33,6 +42,15 @@ class CredentialUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=255)
     key_name: str | None = None
     password: str | None = None
+
+    @field_validator("key_name")
+    @classmethod
+    def validate_key_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if ".." in v or "/" in v or "\\" in v or "\x00" in v:
+            raise ValueError("key_name must be a plain filename without path separators")
+        return v
 
 
 class Credential(CredentialBase):

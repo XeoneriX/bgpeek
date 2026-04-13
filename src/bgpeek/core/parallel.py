@@ -21,6 +21,17 @@ from bgpeek.models.query import (
 
 log = structlog.get_logger(__name__)
 
+# Global semaphore — caps total concurrent SSH sessions across all requests.
+_global_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    """Return (and lazily create) the process-wide concurrency semaphore."""
+    global _global_semaphore  # noqa: PLW0603
+    if _global_semaphore is None:
+        _global_semaphore = asyncio.Semaphore(settings.max_parallel_queries)
+    return _global_semaphore
+
 
 async def execute_parallel(
     request: MultiQueryRequest,
@@ -35,10 +46,11 @@ async def execute_parallel(
     ssh_password: str | None = None,
 ) -> MultiQueryResponse:
     """Execute the same query against multiple devices concurrently."""
-    if max_concurrency is None:
-        max_concurrency = settings.max_parallel_queries
-
-    semaphore = asyncio.Semaphore(max_concurrency)
+    # Use explicit limit for tests; otherwise fall back to global semaphore.
+    if max_concurrency is not None:
+        semaphore = asyncio.Semaphore(max_concurrency)
+    else:
+        semaphore = _get_semaphore()
     start = time.monotonic()
 
     async def _run_one(device_name: str) -> QueryResponse | QueryError:

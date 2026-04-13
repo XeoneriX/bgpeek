@@ -22,8 +22,8 @@ class DeviceBase(BaseModel):
     enabled: bool = True
     restricted: bool = False
     credential_id: int | None = None
-    source4: str | None = None
-    source6: str | None = None
+    source4: IPv4Address | None = None
+    source6: IPv6Address | None = None
 
 
 class DeviceCreate(DeviceBase):
@@ -44,8 +44,8 @@ class DeviceUpdate(BaseModel):
     enabled: bool | None = None
     restricted: bool | None = None
     credential_id: int | None = None
-    source4: str | None = None
-    source6: str | None = None
+    source4: IPv4Address | None = None
+    source6: IPv6Address | None = None
 
 
 class Device(DeviceBase):

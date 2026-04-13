@@ -108,7 +108,7 @@ async def login_submit(
         value=token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.cookie_secure,
         path="/",
         max_age=max_age,
     )
@@ -133,7 +133,7 @@ async def logout() -> RedirectResponse:
         path="/",
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.cookie_secure,
     )
     return response
 
@@ -275,7 +275,7 @@ async def oidc_callback(request: Request) -> Response:
         value=jwt_token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.cookie_secure,
         path="/",
         max_age=max_age,
     )

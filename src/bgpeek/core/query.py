@@ -159,9 +159,9 @@ async def execute_query(
         try:
             addr = ipaddress.ip_address(effective_target.split("/")[0])
             if addr.version == 4:
-                device_source_ip = device.source4
+                device_source_ip = str(device.source4) if device.source4 else None
             else:
-                device_source_ip = device.source6
+                device_source_ip = str(device.source6) if device.source6 else None
         except ValueError:
             pass  # not a valid IP (shouldn't happen after DNS resolution)
 

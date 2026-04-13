@@ -13,6 +13,7 @@ from ldap3.core.exceptions import (
     LDAPException,
     LDAPSocketOpenError,
 )
+from ldap3.utils.conv import escape_filter_chars
 
 from bgpeek.config import settings
 from bgpeek.models.user import UserRole
@@ -73,7 +74,8 @@ def _authenticate_sync(username: str, password: str) -> LdapUserInfo | None:
         svc_conn.start_tls()
 
     # --- Search for user entry ---
-    search_filter = settings.ldap_user_filter.replace("{username}", username)
+    safe_username = escape_filter_chars(username)
+    search_filter = settings.ldap_user_filter.replace("{username}", safe_username)
     svc_conn.search(
         search_base=settings.ldap_base_dn,
         search_filter=search_filter,

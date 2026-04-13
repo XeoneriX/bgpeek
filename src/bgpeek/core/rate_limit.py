@@ -18,6 +18,24 @@ log = structlog.get_logger(__name__)
 _KEY_PREFIX = "bgpeek:rl"
 
 
+def _get_client_ip(request: Request) -> str:
+    """Extract the real client IP, respecting X-Forwarded-For behind trusted proxies."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not settings.trusted_proxies:
+        return client_ip
+    trusted = {ip.strip() for ip in settings.trusted_proxies.split(",") if ip.strip()}
+    if client_ip in trusted:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            # Take the last untrusted IP in the chain
+            ips = [ip.strip() for ip in forwarded.split(",")]
+            for ip in reversed(ips):
+                if ip not in trusted:
+                    return ip
+            return ips[0]  # all trusted, use first
+    return client_ip
+
+
 @dataclass(frozen=True, slots=True)
 class RateLimitResult:
     """Outcome of a rate-limit check."""
@@ -116,7 +134,7 @@ async def rate_limit_query(
     if limit == 0:
         return  # admin bypass
 
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_client_ip(request)
     result = await check_rate_limit(f"query:{ip}", limit)
     _set_headers(response, result)
 
@@ -141,7 +159,7 @@ async def rate_limit_login(
     if not settings.rate_limit_enabled:
         return
 
-    ip = request.client.host if request.client else "unknown"
+    ip = _get_client_ip(request)
     result = await check_rate_limit(f"login:{ip}", settings.rate_limit_login)
     _set_headers(response, result)
 
