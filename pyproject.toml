@@ -51,7 +51,7 @@ dependencies = [
     "bcrypt>=4.0",                    # local password hashing
     # Observability
     "structlog>=24.4.0",
-    "prometheus-fastapi-instrumentator>=7.0.0",
+    "prometheus-fastapi-instrumentator>=7.1.0",
     # Crypto
     "cryptography>=46.0.6",           # CVE fix: 6 CVE
     "python-multipart>=0.0.26",
