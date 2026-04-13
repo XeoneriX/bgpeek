@@ -9,6 +9,8 @@ from typing import Any
 
 import structlog
 from netmiko import ConnectHandler  # type: ignore[import-untyped]
+
+from bgpeek.config import settings
 from netmiko.base_connection import BaseConnection  # type: ignore[import-untyped]
 from netmiko.exceptions import (  # type: ignore[import-untyped]
     NetmikoAuthenticationException,
@@ -76,6 +78,9 @@ class SSHClient:
         if self._key_path is not None:
             kwargs["use_keys"] = True
             kwargs["key_file"] = str(self._key_path)
+        kwargs["ssh_config_file"] = None
+        if settings.ssh_known_hosts_policy != "strict":
+            kwargs["ssh_strict"] = False
         return kwargs
 
     async def connect(self) -> None:

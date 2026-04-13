@@ -61,7 +61,9 @@ async def _get_cached_status(prefix: str, asn: int) -> RpkiStatus | None:
         return None
 
 
-async def _set_cached_status(prefix: str, asn: int, status: RpkiStatus) -> None:
+async def _set_cached_status(
+    prefix: str, asn: int, status: RpkiStatus, *, ttl: int | None = None
+) -> None:
     """Store RPKI status in Redis with configured TTL."""
     try:
         r = get_redis()
@@ -71,7 +73,7 @@ async def _set_cached_status(prefix: str, asn: int, status: RpkiStatus) -> None:
         await r.set(
             _redis_key(prefix, asn),
             status.value,
-            ex=settings.rpki_cache_ttl,
+            ex=ttl if ttl is not None else settings.rpki_cache_ttl,
         )
     except Exception:
         log.warning("rpki_cache_set_failed", prefix=prefix, asn=asn, exc_info=True)
@@ -94,7 +96,7 @@ async def validate_rpki(prefix: str, origin_asn: int) -> RpkiStatus:
     except (httpx.HTTPError, httpx.TimeoutException, ValueError):
         log.warning("rpki_api_failed", prefix=prefix, asn=origin_asn, exc_info=True)
         status = RpkiStatus.UNKNOWN
-        await _set_cached_status(prefix, origin_asn, status)
+        await _set_cached_status(prefix, origin_asn, status, ttl=settings.rpki_error_cache_ttl)
         return status
 
     # Cloudflare response: {"prefix": ..., "asn": ..., "state": "Valid"/"Invalid"/"NotFound"}

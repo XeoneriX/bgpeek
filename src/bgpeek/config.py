@@ -27,6 +27,10 @@ class Settings(BaseSettings):
         default="postgresql://bgpeek:bgpeek@localhost:5432/bgpeek",
         description="PostgreSQL connection string",
     )
+    db_pool_min: int = Field(default=2, description="Minimum DB pool connections")
+    db_pool_max: int = Field(default=10, description="Maximum DB pool connections")
+    db_command_timeout: int = Field(default=30, description="DB command timeout in seconds")
+    auto_migrate: bool = Field(default=True, description="Run migrations on startup")
 
     # --- Cache ---
     redis_url: str = Field(
@@ -93,11 +97,44 @@ class Settings(BaseSettings):
         description="How long shared query results are kept (days)",
     )
 
+    # --- Audit ---
+    audit_ttl_days: int = Field(
+        default=90,
+        description="Audit log retention in days (0 = keep forever)",
+    )
+
+    # --- Circuit breaker ---
+    circuit_breaker_enabled: bool = True
+    circuit_breaker_threshold: int = Field(
+        default=3,
+        description="Consecutive failures before marking device as down",
+    )
+    circuit_breaker_cooldown: int = Field(
+        default=300,
+        description="Seconds to wait before retrying a tripped device",
+    )
+
+    # --- Device access control ---
+    device_public_by_default: bool = Field(
+        default=True,
+        description="If True, all devices are visible to public users unless restricted",
+    )
+
+    # --- SSH ---
+    ssh_username: str = Field(default="looking-glass", description="Default SSH username for devices")
+    ssh_timeout: int = Field(default=30, description="Default SSH connection/command timeout in seconds")
+    ssh_timeout_traceroute: int = Field(default=120, description="SSH timeout for traceroute commands")
+    ssh_known_hosts_policy: str = Field(
+        default="auto-add",
+        description="Host key policy: 'auto-add' (accept new keys) or 'strict' (reject unknown)",
+    )
+
     # --- RPKI ---
     rpki_enabled: bool = True
     rpki_api_url: str = "https://rpki.cloudflare.com/api/v1/validity"
     rpki_timeout: int = 5  # seconds
     rpki_cache_ttl: int = 3600  # 1 hour
+    rpki_error_cache_ttl: int = Field(default=60, description="Cache TTL for RPKI API errors (seconds)")
 
     # --- LG links ---
     lg_links: str = ""  # JSON: [{"name": "RETN", "url": "https://lg.retn.net"}, ...]

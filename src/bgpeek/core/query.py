@@ -7,6 +7,7 @@ from pathlib import Path
 
 import structlog
 
+from bgpeek.config import settings
 from bgpeek.core.bgp_parser import parse_bgp_output
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
@@ -132,15 +133,21 @@ async def execute_query(
         command = build_command(device.platform, request.query_type, effective_target)
 
         # 4. Execute SSH
+        cmd_timeout = (
+            settings.ssh_timeout_traceroute
+            if request.query_type == QueryType.TRACEROUTE
+            else None
+        )
         async with SSHClient(
             host=str(device.address),
-            username="looking-glass",
+            username=settings.ssh_username,
             platform=device.platform,
             port=device.port,
             key_path=ssh_key_path,
             password=ssh_password,
+            timeout=settings.ssh_timeout,
         ) as ssh:
-            raw_output = await ssh.send_command(command)
+            raw_output = await ssh.send_command(command, timeout=cmd_timeout)
 
         # 5. Filter output (privileged roles bypass prefix filtering)
         if request.query_type == QueryType.BGP_ROUTE and not _role_bypasses_filter(user_role):

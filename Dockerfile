@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1.7
 #
 # bgpeek — multi-stage build with uv.
-# Final image: ~150 MB, non-root, tini, alpine.
+# Final image: non-root, tini, slim.
 
 # ===== Stage 1: build venv with uv =====
-FROM python:3.12-alpine AS builder
+FROM python:3.12-slim AS builder
 
-RUN apk add --no-cache \
-      build-base \
-      linux-headers \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
       libffi-dev \
-      openssl-dev
+      libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
@@ -19,6 +19,8 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 
 WORKDIR /app
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 COPY pyproject.toml uv.lock* README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -31,15 +33,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python --no-cache --no-deps -e .
 
 # ===== Stage 2: runtime =====
-FROM python:3.12-alpine AS runtime
+FROM python:3.12-slim AS runtime
 
-RUN apk add --no-cache \
-      libffi \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libffi8 \
       openssl \
       ca-certificates \
       tini \
-    && addgroup -g 1000 bgpeek \
-    && adduser -u 1000 -G bgpeek -s /bin/sh -D bgpeek
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 bgpeek \
+    && useradd -u 1000 -g bgpeek -s /bin/sh -m bgpeek
 
 WORKDIR /app
 

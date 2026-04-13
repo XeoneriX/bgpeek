@@ -21,7 +21,10 @@ log = structlog.get_logger(__name__)
 
 _TIMEOUT = httpx.Timeout(10.0)
 _RETRY_DELAY = 2.0
+_MAX_RETRIES = 2
 _USER_AGENT = f"bgpeek/{__version__}"
+
+_pending_tasks: set[asyncio.Task[None]] = set()
 
 
 def _sign_payload(body: bytes, secret: str) -> str:
@@ -40,7 +43,7 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
     if webhook.secret:
         headers["X-Webhook-Signature"] = _sign_payload(body, webhook.secret)
 
-    for attempt in range(2):
+    for attempt in range(_MAX_RETRIES + 1):
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 resp = await client.post(webhook.url, content=body, headers=headers)
@@ -67,8 +70,8 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
                 attempt=attempt + 1,
                 exc_info=True,
             )
-        if attempt == 0:
-            await asyncio.sleep(_RETRY_DELAY)
+        if attempt < _MAX_RETRIES:
+            await asyncio.sleep(_RETRY_DELAY * (2 ** attempt))
 
 
 async def dispatch_webhook(event: WebhookEvent, data: dict[str, Any]) -> None:
@@ -91,7 +94,20 @@ async def dispatch_webhook(event: WebhookEvent, data: dict[str, Any]) -> None:
     body = json.dumps(payload.model_dump(), default=str).encode()
 
     for hook in hooks:
-        asyncio.create_task(_deliver(hook, body, event))  # noqa: RET503
+        task = asyncio.create_task(_deliver(hook, body, event))
+        _pending_tasks.add(task)
+        task.add_done_callback(_pending_tasks.discard)
+
+
+async def shutdown() -> None:
+    """Cancel and await all pending webhook delivery tasks."""
+    if not _pending_tasks:
+        return
+    log.info("cancelling pending webhook tasks", count=len(_pending_tasks))
+    for task in _pending_tasks:
+        task.cancel()
+    await asyncio.gather(*_pending_tasks, return_exceptions=True)
+    _pending_tasks.clear()
 
 
 async def send_test_payload(webhook: Webhook) -> bool:

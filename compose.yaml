@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: bgpeek
-      POSTGRES_USER: bgpeek
-      POSTGRES_PASSWORD: bgpeek
+      POSTGRES_DB: ${POSTGRES_DB:-bgpeek}
+      POSTGRES_USER: ${POSTGRES_USER:-bgpeek}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bgpeek"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bgpeek}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -30,7 +30,7 @@ services:
     environment:
       BGPEEK_HOST: "0.0.0.0"
       BGPEEK_PORT: "8000"
-      BGPEEK_DATABASE_URL: "postgresql://bgpeek:bgpeek@postgres:5432/bgpeek"
+      BGPEEK_DATABASE_URL: "postgresql://${POSTGRES_USER:-bgpeek}:${POSTGRES_PASSWORD:?err}@postgres:5432/${POSTGRES_DB:-bgpeek}"
       BGPEEK_REDIS_URL: "redis://redis:6379/0"
     ports:
       - "8000:8000"

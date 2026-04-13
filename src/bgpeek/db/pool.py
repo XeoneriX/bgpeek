@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncpg
 import structlog
 
+from bgpeek.config import settings
+
 log = structlog.get_logger(__name__)
 
 _pool: asyncpg.Pool | None = None
@@ -20,7 +22,7 @@ async def init_pool(dsn: str, *, min_size: int = 2, max_size: int = 10) -> async
         dsn=dsn,
         min_size=min_size,
         max_size=max_size,
-        command_timeout=30,
+        command_timeout=settings.db_command_timeout,
     )
     return _pool
 

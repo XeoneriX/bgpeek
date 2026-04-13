@@ -90,7 +90,7 @@ async def htmx_query(
             query_type=QueryType(str(form.get("query_type", "bgp_route"))),
             target=str(form.get("target", "")),
         )
-    except Exception:
+    except (ValueError, KeyError):
         return templates.TemplateResponse(
             request=request,
             name="partials/error.html",
@@ -203,7 +203,7 @@ async def htmx_multi_query(
             query_type=QueryType(str(form.get("query_type", "bgp_route"))),
             target=str(form.get("target", "")),
         )
-    except Exception:
+    except (ValueError, KeyError):
         return templates.TemplateResponse(
             request=request,
             name="partials/error.html",
@@ -301,4 +301,4 @@ async def _persist_result(
         )
     except Exception:
         log.warning("failed to persist query result", exc_info=True)
-        raise
+        return uuid.UUID(int=0)
