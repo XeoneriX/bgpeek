@@ -8,12 +8,27 @@ from typing import Any
 import jwt as pyjwt
 from fastapi import Cookie, Depends, Header, HTTPException, status
 
+from bgpeek.config import settings
 from bgpeek.core.jwt import decode_token
 from bgpeek.db import users as user_crud
 from bgpeek.db.pool import get_pool
 from bgpeek.models.user import User, UserRole
 
 _COOKIE_NAME = "bgpeek_token"
+
+
+def guest_user() -> User:
+    """Return a synthetic guest user for anonymous access in guest mode."""
+    from datetime import UTC, datetime
+
+    return User(
+        id=0,
+        username="guest",
+        role=UserRole.GUEST,
+        enabled=True,
+        auth_provider="anonymous",
+        created_at=datetime.now(tz=UTC),
+    )
 
 
 async def _resolve_bearer(authorization: str) -> User | None:

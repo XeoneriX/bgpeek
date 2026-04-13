@@ -22,6 +22,18 @@ class Settings(BaseSettings):
     workers: int = 1
     debug: bool = False
 
+    # --- Access mode ---
+    access_mode: str = Field(
+        default="guest",
+        description="Access mode: 'closed' (login required), 'guest' (anonymous with restrictions), 'open' (anonymous full access)",
+    )
+
+    # --- DNS ---
+    dns_resolve_enabled: bool = Field(
+        default=True,
+        description="Resolve hostnames to IPs before querying. When false, only IP addresses accepted.",
+    )
+
     # --- Database ---
     database_url: str = Field(
         default="postgresql://bgpeek:bgpeek@localhost:5432/bgpeek",
@@ -84,6 +96,7 @@ class Settings(BaseSettings):
     rate_limit_query: int = 30  # queries per minute per IP
     rate_limit_login: int = 5  # login attempts per minute per IP
     rate_limit_api: int = 60  # API calls per minute per API key
+    rate_limit_guest: int = 10  # queries per minute per IP for guest/anonymous
 
     # --- Parallel queries ---
     max_parallel_queries: int = Field(

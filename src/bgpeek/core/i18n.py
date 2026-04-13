@@ -87,6 +87,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_device_disabled": "Device is disabled",
         "error_no_credentials": "No SSH credentials configured for this device",
         "error_circuit_breaker": "Device temporarily unavailable, try again later",
+        "error_ssh_timeout": "Device connection timed out",
+        "error_ssh_auth": "Device authentication failed",
+        "error_ssh_connection": "Could not connect to device",
+        "error_auth_required": "Authentication required",
+        "error_dns_disabled": "DNS resolution is disabled — enter an IP address",
+        "dns_resolved_notice": "Resolved by bgpeek server, not by router",
     },
     "ru": {
         "site_name": "bgpeek",
@@ -172,6 +178,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_device_disabled": "Устройство отключено",
         "error_no_credentials": "SSH-доступ не настроен для этого устройства",
         "error_circuit_breaker": "Устройство временно недоступно, попробуйте позже",
+        "error_ssh_timeout": "Время подключения к устройству истекло",
+        "error_ssh_auth": "Ошибка авторизации на устройстве",
+        "error_ssh_connection": "Не удалось подключиться к устройству",
+        "error_auth_required": "Необходима авторизация",
+        "error_dns_disabled": "DNS-резолв отключён — введите IP-адрес",
+        "dns_resolved_notice": "Определено сервером bgpeek, а не роутером",
     },
 }
 

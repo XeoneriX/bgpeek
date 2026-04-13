@@ -12,7 +12,7 @@ from operator import attrgetter
 
 import structlog
 from fastapi import Depends, FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from prometheus_fastapi_instrumentator import Instrumentator  # type: ignore[import-untyped]
@@ -25,7 +25,7 @@ from bgpeek.api import devices as devices_api
 from bgpeek.api import query as query_api
 from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
-from bgpeek.core.auth import optional_auth
+from bgpeek.core.auth import guest_user, optional_auth
 from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
 from bgpeek.core.oidc import setup_oidc
 from bgpeek.core.redis import close_redis, get_redis, init_redis
@@ -335,6 +335,11 @@ async def index(
     user: User | None = Depends(optional_auth),  # noqa: B008
 ) -> HTMLResponse:
     """Main looking glass form — loads devices from DB for the dropdown."""
+    if user is None:
+        if settings.access_mode == "closed":
+            return RedirectResponse(url="/auth/login", status_code=303)
+        if settings.access_mode == "guest":
+            user = guest_user()
     include_restricted = user is not None and user.role in (UserRole.ADMIN, UserRole.NOC)
     try:
         devices = await device_crud.list_devices(get_pool(), enabled_only=True, include_restricted=include_restricted)
@@ -374,6 +379,11 @@ async def history(
     user: User | None = Depends(optional_auth),  # noqa: B008
 ) -> HTMLResponse:
     """Query history page with offset-based pagination."""
+    if user is None:
+        if settings.access_mode == "closed":
+            return RedirectResponse(url="/auth/login", status_code=303)
+        if settings.access_mode == "guest":
+            user = guest_user()
     user_id = user.id if user else None
     try:
         results = await list_results(

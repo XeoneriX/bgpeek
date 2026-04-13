@@ -14,6 +14,7 @@ class UserRole(StrEnum):
     ADMIN = "admin"
     NOC = "noc"
     PUBLIC = "public"
+    GUEST = "guest"
 
 
 class UserBase(BaseModel):

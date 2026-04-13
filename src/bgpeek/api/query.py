@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
-from bgpeek.core.auth import authenticate, optional_auth
+from bgpeek.core.auth import authenticate, guest_user, optional_auth
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.rate_limit import rate_limit_query
@@ -32,6 +33,10 @@ from bgpeek.models.user import User
 
 log = structlog.get_logger(__name__)
 
+_IP_PATTERN = re.compile(
+    r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\b"
+)
+
 
 def _friendly_error(detail: str, t: dict[str, str]) -> str:
     """Map technical error messages to translated user-friendly messages."""
@@ -44,6 +49,8 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
         return t.get("error_prefix_too_specific", detail)
     if "parse error" in lower:
         return t.get("error_invalid_target", detail)
+    if "dns resolution is disabled" in lower:
+        return t.get("error_dns_disabled", detail)
     if "could not resolve" in lower or "dns" in lower:
         return t.get("error_dns_failed", detail)
     if "not found" in lower:
@@ -54,7 +61,14 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
         return t.get("error_no_credentials", detail)
     if "circuit breaker" in lower:
         return t.get("error_circuit_breaker", detail)
-    return detail  # fallback to original
+    if "timed out" in lower or "timeout" in lower:
+        return t.get("error_ssh_timeout", detail)
+    if "authentication failed" in lower:
+        return t.get("error_ssh_auth", detail)
+    if "connection" in lower and ("refused" in lower or "failed" in lower):
+        return t.get("error_ssh_connection", detail)
+    # Fallback: strip IP addresses from unmatched errors for safety
+    return _IP_PATTERN.sub("[redacted]", detail)
 
 router = APIRouter(tags=["query"])
 templates = Jinja2Templates(directory=str(settings.templates_dir))
@@ -108,6 +122,19 @@ async def htmx_query(
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> HTMLResponse:
     """Execute a query and return an HTMX partial (server-rendered HTML fragment)."""
+    if caller is None:
+        if settings.access_mode == "closed":
+            return templates.TemplateResponse(
+                request=request,
+                name="partials/error.html",
+                context={
+                    "error": request.state.t.get("error_auth_required", "Authentication required"),
+                    "t": request.state.t,
+                    "lang": request.state.lang,
+                },
+            )
+        if settings.access_mode == "guest":
+            caller = guest_user()
     form = await request.form()
     try:
         body = QueryRequest(
@@ -210,6 +237,19 @@ async def htmx_multi_query(
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> HTMLResponse:
     """Execute a parallel query and return an HTMX partial with all results."""
+    if caller is None:
+        if settings.access_mode == "closed":
+            return templates.TemplateResponse(
+                request=request,
+                name="partials/error.html",
+                context={
+                    "error": request.state.t.get("error_auth_required", "Authentication required"),
+                    "t": request.state.t,
+                    "lang": request.state.lang,
+                },
+            )
+        if settings.access_mode == "guest":
+            caller = guest_user()
     form = await request.form()
     raw_names = form.getlist("device_names") or form.getlist("location")
     device_names = [str(n) for n in raw_names if str(n).strip()]

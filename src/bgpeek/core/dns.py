@@ -9,6 +9,8 @@ from ipaddress import IPv4Address, ip_address, ip_network
 
 import structlog
 
+from bgpeek.config import settings
+
 log = structlog.get_logger(__name__)
 
 
@@ -64,7 +66,14 @@ async def resolve_target(target: str) -> ResolvedTarget:
             all_addresses=[],
         )
 
-    # Looks like a hostname — resolve it.
+    # Hostname detected — check if DNS resolution is enabled.
+    if not settings.dns_resolve_enabled:
+        raise DNSResolutionError(
+            target,
+            "DNS resolution is disabled — enter an IP address",
+        )
+
+    # Resolve hostname.
     loop = asyncio.get_running_loop()
     try:
         infos = await loop.getaddrinfo(
