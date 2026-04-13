@@ -43,8 +43,8 @@ async def create_device(pool: asyncpg.Pool, payload: DeviceCreate) -> Device:
     """Insert a new device. Raises `asyncpg.UniqueViolationError` on duplicate name."""
     row = await pool.fetchrow(
         """
-        INSERT INTO devices (name, address, port, platform, description, location, enabled, restricted, credential_id, source4, source6)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO devices (name, address, port, platform, description, location, region, enabled, restricted, credential_id, source4, source6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
         """,
         payload.name,
@@ -53,6 +53,7 @@ async def create_device(pool: asyncpg.Pool, payload: DeviceCreate) -> Device:
         payload.platform,
         payload.description,
         payload.location,
+        payload.region,
         payload.enabled,
         payload.restricted,
         payload.credential_id,
@@ -67,7 +68,7 @@ async def create_device(pool: asyncpg.Pool, payload: DeviceCreate) -> Device:
 # DeviceUpdate model, but we double-check here so the dynamic SQL builder
 # below can never see an attacker-controlled column name.
 _UPDATABLE_COLUMNS: frozenset[str] = frozenset(
-    {"name", "address", "port", "platform", "description", "location", "enabled", "restricted", "credential_id", "source4", "source6"}
+    {"name", "address", "port", "platform", "description", "location", "region", "enabled", "restricted", "credential_id", "source4", "source6"}
 )
 
 

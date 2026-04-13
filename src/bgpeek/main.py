@@ -376,11 +376,12 @@ async def index(
     except RuntimeError:
         devices = []
 
-    # Group devices by location for <optgroup> rendering
-    sorted_devices = sorted(devices, key=lambda d: (d.location or "", d.name))
+    # Group devices by region for <optgroup> rendering.
+    # Within each region, devices sorted by (location, name).
+    sorted_devices = sorted(devices, key=lambda d: (d.region or "", d.location or "", d.name))
     device_groups = [
-        (loc, list(grp))
-        for loc, grp in groupby(sorted_devices, key=attrgetter("location"))
+        (region, list(grp))
+        for region, grp in groupby(sorted_devices, key=attrgetter("region"))
     ]
 
     return templates.TemplateResponse(

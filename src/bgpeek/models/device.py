@@ -19,6 +19,7 @@ class DeviceBase(BaseModel):
     platform: str = Field(min_length=1, max_length=64)
     description: str | None = None
     location: str | None = None
+    region: str | None = None
     enabled: bool = True
     restricted: bool = False
     credential_id: int | None = None
@@ -41,6 +42,7 @@ class DeviceUpdate(BaseModel):
     platform: str | None = Field(default=None, min_length=1, max_length=64)
     description: str | None = None
     location: str | None = None
+    region: str | None = None
     enabled: bool | None = None
     restricted: bool | None = None
     credential_id: int | None = None

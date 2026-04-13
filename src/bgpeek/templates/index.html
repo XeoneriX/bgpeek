@@ -77,16 +77,20 @@
                                    focus:border-slate-500 focus:ring-1 focus:ring-slate-500
                                    dark:focus:border-slate-400 dark:focus:ring-slate-400
                                    h-[120px] overflow-y-auto scrollbar-thin">
-                        {% for location, group_devices in device_groups %}
-                        {% if location %}
-                        <optgroup label="{{ location }}">
+                        {% for region, group_devices in device_groups %}
+                        {% if region %}
+                        <optgroup label="{{ region }}">
                             {% for device in group_devices %}
-                            <option value="{{ device.name }}">{{ device.name }}</option>
+                            <option value="{{ device.name }}">
+                                {{ device.name }}{% if device.location %} ({{ device.location }}){% endif %}
+                            </option>
                             {% endfor %}
                         </optgroup>
                         {% else %}
                         {% for device in group_devices %}
-                        <option value="{{ device.name }}">{{ device.name }}</option>
+                        <option value="{{ device.name }}">
+                            {{ device.name }}{% if device.location %} ({{ device.location }}){% endif %}
+                        </option>
                         {% endfor %}
                         {% endif %}
                         {% endfor %}
