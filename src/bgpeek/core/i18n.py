@@ -74,6 +74,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "n_selected": "selected",
         "resolved_to": "resolved to",
         "other_looking_glasses": "Other Looking Glasses",
+        # Error messages
+        "error_private_ip": "Private IP address — query not available",
+        "error_bogon": "Reserved IP address — query not available",
+        "error_prefix_too_specific": "Prefix too specific (max /24 for IPv4, /48 for IPv6)",
+        "error_invalid_target": "Invalid IP address or hostname",
+        "error_dns_failed": "Could not resolve hostname",
+        "error_device_not_found": "Device not found",
+        "error_device_disabled": "Device is disabled",
+        "error_no_credentials": "No SSH credentials configured for this device",
+        "error_circuit_breaker": "Device temporarily unavailable, try again later",
     },
     "ru": {
         "site_name": "bgpeek",
@@ -146,6 +156,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "n_selected": "выбрано",
         "resolved_to": "разрешён в",
         "other_looking_glasses": "Другие Looking Glass",
+        # Error messages
+        "error_private_ip": "Приватный IP-адрес — запрос невозможен",
+        "error_bogon": "Зарезервированный IP-адрес — запрос невозможен",
+        "error_prefix_too_specific": "Слишком точный префикс (максимум /24 для IPv4, /48 для IPv6)",
+        "error_invalid_target": "Неверный IP-адрес или доменное имя",
+        "error_dns_failed": "Не удалось определить IP-адрес для этого домена",
+        "error_device_not_found": "Устройство не найдено",
+        "error_device_disabled": "Устройство отключено",
+        "error_no_credentials": "SSH-доступ не настроен для этого устройства",
+        "error_circuit_breaker": "Устройство временно недоступно, попробуйте позже",
     },
 }
 

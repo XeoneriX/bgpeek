@@ -32,6 +32,30 @@ from bgpeek.models.user import User
 
 log = structlog.get_logger(__name__)
 
+
+def _friendly_error(detail: str, t: dict[str, str]) -> str:
+    """Map technical error messages to translated user-friendly messages."""
+    lower = detail.lower()
+    if "private address" in lower:
+        return t.get("error_private_ip", detail)
+    if "bogon" in lower:
+        return t.get("error_bogon", detail)
+    if "too specific" in lower:
+        return t.get("error_prefix_too_specific", detail)
+    if "parse error" in lower:
+        return t.get("error_invalid_target", detail)
+    if "could not resolve" in lower or "dns" in lower:
+        return t.get("error_dns_failed", detail)
+    if "not found" in lower:
+        return t.get("error_device_not_found", detail)
+    if "disabled" in lower:
+        return t.get("error_device_disabled", detail)
+    if "no ssh credentials" in lower or "no credentials" in lower:
+        return t.get("error_no_credentials", detail)
+    if "circuit breaker" in lower:
+        return t.get("error_circuit_breaker", detail)
+    return detail  # fallback to original
+
 router = APIRouter(tags=["query"])
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 
@@ -133,7 +157,7 @@ async def htmx_query(
             request=request,
             name="partials/error.html",
             context={
-                "error": exc.reason,
+                "error": _friendly_error(exc.reason, request.state.t),
                 "t": request.state.t,
                 "lang": request.state.lang,
             },
@@ -143,7 +167,7 @@ async def htmx_query(
             request=request,
             name="partials/error.html",
             context={
-                "error": exc.detail,
+                "error": _friendly_error(exc.detail, request.state.t),
                 "t": request.state.t,
                 "lang": request.state.lang,
             },
@@ -236,6 +260,10 @@ async def htmx_multi_query(
 
     role = caller.role.value if caller else None
     response.results = [filter_response(r, role) for r in response.results]
+
+    # Translate error details for HTMX rendering
+    for err in response.errors:
+        err.detail = _friendly_error(err.detail, request.state.t)
 
     return templates.TemplateResponse(
         request=request,

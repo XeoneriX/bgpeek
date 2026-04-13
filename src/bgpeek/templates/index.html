@@ -64,7 +64,7 @@
             <form id="query-form"
                   hx-post="/query"
                   hx-target="#results"
-                  hx-swap="afterbegin"
+                  hx-swap="innerHTML"
                   hx-indicator="#spinner"
                   class="space-y-4">
 
@@ -116,7 +116,7 @@
                 <label class="block">
                     <span class="text-sm font-medium text-slate-600 dark:text-slate-300">{{ t.target }}</span>
                     <input type="text" name="target" required
-                           placeholder="8.8.8.0/24 or 1.1.1.1"
+                           placeholder="8.8.8.0/24"
                            class="mt-1 block w-full rounded-md border border-slate-300 dark:border-slate-600
                                   bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100
                                   px-3 py-2 text-sm placeholder-slate-400 dark:placeholder-slate-500
@@ -255,15 +255,23 @@
   });
   observer.observe(results, { childList: true });
 
-  /* ── Limit results DOM to prevent unbounded growth ────────── */
-  var MAX_RESULTS = 20;
-  document.body.addEventListener("htmx:afterSwap", function (evt) {
-    if (evt.detail.target === results) {
-      while (results.children.length > MAX_RESULTS) {
-        results.removeChild(results.lastElementChild);
-      }
-    }
-  });
+  /* ── Dynamic placeholder based on query type ──────────────── */
+  var targetInput = document.querySelector('input[name="target"]');
+  var queryTypeSelect = document.querySelector('select[name="query_type"]');
+
+  var placeholders = {
+    "bgp_route": "8.8.8.0/24",
+    "ping": "8.8.8.8 or ya.ru",
+    "traceroute": "8.8.8.8 or ya.ru"
+  };
+
+  function updatePlaceholder() {
+    var type = queryTypeSelect.value;
+    targetInput.placeholder = placeholders[type] || "8.8.8.0/24";
+  }
+
+  queryTypeSelect.addEventListener("change", updatePlaceholder);
+  updatePlaceholder();
 })();
 </script>
 {% endblock %}
