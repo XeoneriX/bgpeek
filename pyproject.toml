@@ -72,7 +72,7 @@ dev = [
     "pip-audit>=2.7.3",
     "bandit>=1.9.4",
     # Pre-commit
-    "pre-commit>=4.0.0",
+    "pre-commit>=4.5.1",
 ]
 # E2E tests need playwright + browser binaries, run on host (not in alpine container).
 # Install with: uv sync --extra dev --extra e2e && uv run playwright install chromium
