@@ -1,9 +1,15 @@
-# bgpeek
+<div align="center">
+
+<img src="assets/logo.svg" alt="bgpeek" width="240"/>
+
+**Open-source looking glass for ISPs and IX operators.**
+
+Self-hosted, multi-vendor, API-first.
 
 [![CI](https://github.com/xeonerix/bgpeek/actions/workflows/ci.yml/badge.svg)](https://github.com/xeonerix/bgpeek/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Open-source looking glass for ISPs and IX operators. A modern, self-hosted alternative to Hyperglass.
+</div>
 
 ## Features
 
