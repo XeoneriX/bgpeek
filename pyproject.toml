@@ -35,7 +35,7 @@ dependencies = [
     # HTTP client
     "httpx>=0.28.0",
     # Database
-    "asyncpg>=0.30.0",
+    "asyncpg>=0.31.0",
     "yoyo-migrations>=9.0.0",         # SQL migrations runner
     "psycopg[binary]>=3.2.0",         # PostgreSQL driver for yoyo-migrations
     # Cache
