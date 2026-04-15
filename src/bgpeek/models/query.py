@@ -20,7 +20,7 @@ class QueryType(StrEnum):
 class QueryRequest(BaseModel):
     """Incoming query from user or API."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     device_name: str = Field(min_length=1, max_length=255)
     query_type: QueryType
@@ -89,7 +89,7 @@ class QueryError(BaseModel):
 class MultiQueryRequest(BaseModel):
     """Query targeting multiple devices in parallel."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     device_names: list[str] = Field(min_length=1, max_length=10)
     query_type: QueryType

@@ -171,3 +171,21 @@ async def test_privileged_role_ping_unchanged(pool: asyncpg.Pool) -> None:
         )
 
     assert result.filtered_output == raw
+
+
+def test_query_request_strips_whitespace_around_target() -> None:
+    """Pasted whitespace must not survive into the backend — pydantic
+    str_strip_whitespace handles this for us so validators see the
+    canonical value (defense in depth on top of the JS strip)."""
+    from bgpeek.models.query import MultiQueryRequest, QueryRequest, QueryType
+
+    req = QueryRequest(
+        device_name="dev1", query_type=QueryType.BGP_ROUTE, target="  8.8.8.0/24  "
+    )
+    assert req.target == "8.8.8.0/24"
+    assert req.device_name == "dev1"
+
+    multi = MultiQueryRequest(
+        device_names=["a", "b"], query_type=QueryType.PING, target="\t1.1.1.1\n"
+    )
+    assert multi.target == "1.1.1.1"

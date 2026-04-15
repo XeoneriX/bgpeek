@@ -96,6 +96,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_ssh_connection": "Could not connect to device",
         "error_auth_required": "Authentication required",
         "error_cidr_not_allowed": "Subnet mask not allowed for ping/traceroute — enter an IP address",
+        "error_target_format": "Enter a valid IP address, prefix or hostname",
         "error_dns_disabled": "DNS resolution is disabled — enter an IP address",
         "dns_resolved_notice": "Resolved by bgpeek server, not by router",
         "no_output": "No output — route not found or empty response",
