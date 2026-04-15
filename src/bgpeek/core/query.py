@@ -17,7 +17,13 @@ from bgpeek.core.dns import DNSResolutionError, resolve_target
 from bgpeek.core.output_filter import filter_route_text, strip_router_banners
 from bgpeek.core.rpki import validate_routes
 from bgpeek.core.ssh import SSHClient, SSHError
-from bgpeek.core.validators import TargetValidationError, is_bogon, parse_target, validate_target
+from bgpeek.core.validators import (
+    TargetValidationError,
+    diagnostic_target_rejection,
+    is_bogon,
+    parse_target,
+    validate_target,
+)
 from bgpeek.db import devices as device_crud
 from bgpeek.db.audit import log_audit
 from bgpeek.db.credentials import get_credential_for_device
@@ -109,16 +115,26 @@ async def execute_query(
         # 1. Validate target
         if request.query_type == QueryType.BGP_ROUTE:
             validate_target(effective_target)
-        elif not _role_bypasses_filter(user_role):
-            # Public users cannot ping/trace private (RFC1918/bogon) addresses
+        else:
+            # ping/traceroute: always reject targets that are meaningless
+            # (default route, unspecified, broadcast, multicast, link-local) —
+            # they only generate noise on the router. Public users additionally
+            # cannot probe private/bogon addresses.
             try:
                 net = parse_target(effective_target)
-                bogon = is_bogon(net)
-                if bogon is not None:
+                diag_reason = diagnostic_target_rejection(net)
+                if diag_reason is not None:
                     raise TargetValidationError(
-                        f"private address ({bogon}) — not available for public queries",
+                        f"invalid ping/traceroute target — {diag_reason}",
                         effective_target,
                     )
+                if not _role_bypasses_filter(user_role):
+                    bogon = is_bogon(net)
+                    if bogon is not None:
+                        raise TargetValidationError(
+                            f"private address ({bogon}) — not available for public queries",
+                            effective_target,
+                        )
             except TargetValidationError:
                 raise
             except ValueError:

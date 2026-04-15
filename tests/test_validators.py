@@ -12,6 +12,7 @@ from bgpeek.core.validators import (
     DEFAULT_MAX_PREFIX_V4,
     DEFAULT_MAX_PREFIX_V6,
     TargetValidationError,
+    diagnostic_target_rejection,
     is_bogon,
     is_default_route,
     is_unspecified_host,
@@ -176,3 +177,41 @@ def test_validate_target_custom_thresholds() -> None:
     assert result == IPv4Network("8.8.8.0/25")
     with pytest.raises(TargetValidationError):
         validate_target("8.8.8.0/24", max_v4=23)
+
+
+@pytest.mark.parametrize(
+    ("value", "reason_part"),
+    [
+        ("0.0.0.0", "unspecified"),  # noqa: S104
+        ("0.1.2.3", "unspecified"),
+        ("0.0.0.0/8", "unspecified"),  # noqa: S104
+        ("0.0.0.0/0", "default route"),  # noqa: S104
+        ("255.255.255.255", "broadcast"),
+        ("224.0.0.1", "multicast"),
+        ("239.1.2.3", "multicast"),
+        ("169.254.1.1", "link-local"),
+        ("::", "unspecified"),
+        ("::/0", "default route"),
+        ("ff02::1", "multicast"),
+        ("fe80::1", "link-local"),
+    ],
+)
+def test_diagnostic_target_rejection_blocks(value: str, reason_part: str) -> None:
+    net = parse_target(value)
+    reason = diagnostic_target_rejection(net)
+    assert reason is not None
+    assert reason_part in reason
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "8.8.8.8",
+        "1.1.1.1",
+        "10.0.0.1",  # bogon, but ok for diagnostics from privileged role
+        "2001:4860:4860::8888",
+        "2606:4700:4700::1111",
+    ],
+)
+def test_diagnostic_target_rejection_allows(value: str) -> None:
+    assert diagnostic_target_rejection(parse_target(value)) is None

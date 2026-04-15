@@ -47,6 +47,9 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
         return t.get("error_prefix_too_specific", detail)
     if "subnet mask not allowed" in lower:
         return t.get("error_cidr_not_allowed", detail)
+    if "invalid ping/traceroute target" in lower:
+        # Constant string from validators — no PII, return as-is.
+        return detail
     if "parse error" in lower:
         return t.get("error_invalid_target", detail)
     if "dns resolution is disabled" in lower:

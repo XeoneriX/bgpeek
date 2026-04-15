@@ -81,6 +81,44 @@ def is_unspecified_host(network: IPv4Network | IPv6Network) -> bool:
     return network.prefixlen == 128
 
 
+# Networks that have no useful meaning as a ping/traceroute destination and
+# only generate noise on the router (or, worse, target the router itself or
+# every host on a segment). Rejected for diagnostic queries regardless of
+# the caller's role.
+_DIAG_REJECT_V4: tuple[tuple[IPv4Network, str], ...] = (
+    (IPv4Network("0.0.0.0/8"), "unspecified address (0.0.0.0/8)"),
+    (IPv4Network("255.255.255.255/32"), "limited broadcast (255.255.255.255)"),
+    (IPv4Network("224.0.0.0/4"), "IPv4 multicast (224.0.0.0/4)"),
+    (IPv4Network("169.254.0.0/16"), "link-local (169.254.0.0/16)"),
+)
+
+_DIAG_REJECT_V6: tuple[tuple[IPv6Network, str], ...] = (
+    (IPv6Network("::/128"), "IPv6 unspecified (::)"),
+    (IPv6Network("ff00::/8"), "IPv6 multicast (ff00::/8)"),
+    (IPv6Network("fe80::/10"), "IPv6 link-local (fe80::/10)"),
+)
+
+
+def diagnostic_target_rejection(network: IPv4Network | IPv6Network) -> str | None:
+    """Return a rejection reason if `network` is unsuitable for ping/traceroute.
+
+    Applies regardless of caller role: default route, unspecified, broadcast,
+    multicast and link-local ranges are always meaningless as ping/trace
+    destinations and only burn router resources.
+    """
+    if is_default_route(network):
+        return "default route is not a valid ping/traceroute target"
+    if isinstance(network, IPv4Network):
+        for net, label in _DIAG_REJECT_V4:
+            if network.subnet_of(net):
+                return label
+        return None
+    for net6, label6 in _DIAG_REJECT_V6:
+        if network.subnet_of(net6):
+            return label6
+    return None
+
+
 def prefix_too_specific(
     network: IPv4Network | IPv6Network,
     max_v4: int = DEFAULT_MAX_PREFIX_V4,
