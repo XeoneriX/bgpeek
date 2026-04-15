@@ -35,7 +35,9 @@ class BGPRoute(BaseModel):
     as_path: str | None = None
     origin: str | None = None  # IGP, EGP, Incomplete
     med: int | None = None
+    metric2: int | None = None  # Junos IGP metric to next-hop
     local_pref: int | None = None
+    age: str | None = None  # raw string, e.g. "4d 10:03:27", "2w3d"
     communities: list[str] = Field(default_factory=list)
     best: bool = False
     rpki_status: str | None = None

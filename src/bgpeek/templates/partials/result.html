@@ -73,6 +73,8 @@
                     <th class="px-4 py-2.5 text-center">{{ t.origin }}</th>
                     <th class="px-4 py-2.5 text-right">{{ t.lp }}</th>
                     <th class="px-4 py-2.5 text-right">{{ t.med }}</th>
+                    <th class="px-4 py-2.5 text-right">{{ t.metric2 }}</th>
+                    <th class="px-4 py-2.5 whitespace-nowrap">{{ t.age }}</th>
                     <th class="px-4 py-2.5">{{ t.communities }}</th>
                     <th class="px-4 py-2.5 text-center">{{ t.rpki }}</th>
                 </tr>
@@ -94,6 +96,12 @@
                     </td>
                     <td class="px-4 py-2 text-right whitespace-nowrap text-slate-400">
                         {{ route.med if route.med is not none else '-' }}
+                    </td>
+                    <td class="px-4 py-2 text-right whitespace-nowrap text-slate-400">
+                        {{ route.metric2 if route.metric2 is not none else '-' }}
+                    </td>
+                    <td class="px-4 py-2 whitespace-nowrap text-slate-400">
+                        {{ route.age or '-' }}
                     </td>
                     <td class="px-4 py-2 text-xs text-slate-400">
                         {{ route.communities | join(', ') if route.communities else '-' }}

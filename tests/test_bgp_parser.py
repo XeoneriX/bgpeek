@@ -295,6 +295,22 @@ def test_localpref_extracted_correctly() -> None:
     assert routes[0].local_pref == 200
 
 
+def test_junos_age_and_metric2_extracted() -> None:
+    text = """\
+* 8.8.8.0/24 (1 entries, 1 announced)
+        BGP    Preference: 170/-101
+                Next hop: 10.0.0.1 via ge-0/0/0.0
+                AS path: 15169 I
+                Localpref: 100
+                MED: 0
+                Age: 4d 10:03:27  Metric: 0   Metric2: 100000
+"""
+    routes = parse_bgp_output(text, platform="juniper_junos")
+    assert len(routes) == 1
+    assert routes[0].age == "4d 10:03:27"
+    assert routes[0].metric2 == 100000
+
+
 def test_junos_as_path_with_originator_annotation() -> None:
     """Junos detail output may suffix the AS-path with annotations like
     (Originator), (Looped), (Aggregator ...). These must be stripped so

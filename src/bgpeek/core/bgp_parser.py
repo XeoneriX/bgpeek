@@ -20,6 +20,10 @@ _JUNOS_ASPATH_RE = re.compile(r"AS path:\s+(.+?)(?:\s*$)")
 _JUNOS_COMMUNITY_RE = re.compile(r"Communities:\s+(.+)")
 _JUNOS_LOCALPREF_RE = re.compile(r"Localpref:\s+(\d+)")
 _JUNOS_MED_RE = re.compile(r"MED:\s+(\d+)")
+_JUNOS_METRIC2_RE = re.compile(r"Metric2:\s+(\d+)")
+# "Age: 4d 10:03:27" or "Age: 2w3d 12:34:56". The value ends at double
+# whitespace (next field like "Metric:") or end of line.
+_JUNOS_AGE_RE = re.compile(r"Age:\s+(.+?)(?:\s{2,}|$)")
 
 
 def _parse_junos(text: str) -> list[BGPRoute]:
@@ -29,7 +33,9 @@ def _parse_junos(text: str) -> list[BGPRoute]:
     current_aspath: str | None = None
     current_origin: str | None = None
     current_med: int | None = None
+    current_metric2: int | None = None
     current_lp: int | None = None
+    current_age: str | None = None
     current_comms: list[str] = []
     current_best = False
     in_entry = False
@@ -37,7 +43,15 @@ def _parse_junos(text: str) -> list[BGPRoute]:
     def _has_data() -> bool:
         return any(
             v is not None
-            for v in (current_nh, current_aspath, current_origin, current_med, current_lp)
+            for v in (
+                current_nh,
+                current_aspath,
+                current_origin,
+                current_med,
+                current_metric2,
+                current_lp,
+                current_age,
+            )
         ) or bool(current_comms)
 
     def _flush() -> None:
@@ -49,7 +63,9 @@ def _parse_junos(text: str) -> list[BGPRoute]:
                     as_path=current_aspath,
                     origin=current_origin,
                     med=current_med,
+                    metric2=current_metric2,
                     local_pref=current_lp,
+                    age=current_age,
                     communities=list(current_comms),
                     best=current_best,
                 )
@@ -64,7 +80,9 @@ def _parse_junos(text: str) -> list[BGPRoute]:
             current_aspath = None
             current_origin = None
             current_med = None
+            current_metric2 = None
             current_lp = None
+            current_age = None
             current_comms = []
             current_best = "*" in line.split(prefix_m.group(1))[0]
             in_entry = True
@@ -78,7 +96,9 @@ def _parse_junos(text: str) -> list[BGPRoute]:
             current_aspath = None
             current_origin = None
             current_med = None
+            current_metric2 = None
             current_lp = None
+            current_age = None
             current_comms = []
             # After flushing a populated entry, reset best for subsequent paths;
             # keep best from the prefix line for the first (empty) path block.
@@ -120,10 +140,20 @@ def _parse_junos(text: str) -> list[BGPRoute]:
             current_lp = int(m.group(1))
             continue
 
+        # Age, Metric, Metric2 frequently share one line in Junos detail
+        # output (e.g. "Age: 4d 10:03:27  Metric: 0   Metric2: 100000"),
+        # so do not `continue` after matching any one of them.
         m = _JUNOS_MED_RE.search(line)
         if m:
             current_med = int(m.group(1))
-            continue
+
+        m = _JUNOS_METRIC2_RE.search(line)
+        if m:
+            current_metric2 = int(m.group(1))
+
+        m = _JUNOS_AGE_RE.search(line)
+        if m:
+            current_age = m.group(1).strip()
 
     _flush()
     return routes
