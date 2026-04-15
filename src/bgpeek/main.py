@@ -15,7 +15,6 @@ import structlog
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -31,7 +30,7 @@ from bgpeek.core.auth import guest_user, optional_auth
 from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
 from bgpeek.core.oidc import setup_oidc
 from bgpeek.core.redis import close_redis, get_redis, init_redis
-from bgpeek.core.time_utils import timeago
+from bgpeek.core.templates import templates
 from bgpeek.core.webhooks import shutdown as shutdown_webhooks
 from bgpeek.db import devices as device_crud
 from bgpeek.db.pool import close_pool, get_pool, init_pool
@@ -39,8 +38,6 @@ from bgpeek.db.results import list_results
 from bgpeek.models.user import User, UserRole
 
 log = structlog.get_logger()
-
-templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
 def _parse_lg_links() -> list[dict[str, str]]:
@@ -63,11 +60,6 @@ def _parse_lg_links() -> list[dict[str, str]]:
 
 
 _lg_links: list[dict[str, str]] = _parse_lg_links()
-templates.env.filters["timeago"] = timeago
-
-from bgpeek.core.community_labels import annotate as annotate_community  # noqa: E402
-
-templates.env.filters["annotate_community"] = annotate_community
 
 _LANG_COOKIE = "bgpeek_lang"
 _LANG_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year

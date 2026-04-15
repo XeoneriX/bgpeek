@@ -6,7 +6,6 @@ import asyncpg
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
 from bgpeek.core.auth import authenticate, require_role
@@ -14,6 +13,7 @@ from bgpeek.core.jwt import create_token
 from bgpeek.core.ldap import authenticate_ldap
 from bgpeek.core.oidc import extract_role_from_token, get_oidc_client
 from bgpeek.core.rate_limit import rate_limit_login
+from bgpeek.core.templates import templates
 from bgpeek.db import users as crud
 from bgpeek.db.pool import get_pool
 from bgpeek.models.user import (
@@ -31,8 +31,6 @@ from bgpeek.models.webhook import WebhookEvent
 log = structlog.get_logger()
 
 router = APIRouter(tags=["auth"])
-
-templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 _COOKIE_NAME = "bgpeek_token"
 

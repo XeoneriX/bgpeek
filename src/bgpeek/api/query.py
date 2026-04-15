@@ -9,7 +9,6 @@ from pathlib import Path
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
 from bgpeek.core.auth import authenticate, guest_user, optional_auth
@@ -17,6 +16,7 @@ from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.rate_limit import rate_limit_query
 from bgpeek.core.response_filter import filter_response, filter_stored_result
+from bgpeek.core.templates import templates
 from bgpeek.core.validators import TargetValidationError
 from bgpeek.db.pool import get_pool
 from bgpeek.db.results import get_result, list_results, save_result
@@ -72,7 +72,6 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
 
 
 router = APIRouter(tags=["query"])
-templates = Jinja2Templates(directory=str(settings.templates_dir))
 
 
 def _real_user_id(user: User | None) -> int | None:
