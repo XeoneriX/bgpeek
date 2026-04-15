@@ -295,6 +295,36 @@ def test_localpref_extracted_correctly() -> None:
     assert routes[0].local_pref == 200
 
 
+def test_junos_as_path_with_originator_annotation() -> None:
+    """Junos detail output may suffix the AS-path with annotations like
+    (Originator), (Looped), (Aggregator ...). These must be stripped so
+    the trailing I/E/? origin code is still detected."""
+    text = """\
+* 8.8.8.0/24 (3 entries, 1 announced)
+        BGP    Preference: 170/-101
+                Next hop: 10.10.0.13 via ge-0/0/0.0
+                AS path: 15169 I (Originator)
+                Communities: 65000:100
+"""
+    routes = parse_bgp_output(text, platform="juniper_junos")
+    assert len(routes) == 1
+    assert routes[0].as_path == "15169"
+    assert routes[0].origin == "IGP"
+
+
+def test_junos_as_path_with_multiple_annotations() -> None:
+    text = """\
+* 8.8.8.0/24 (1 entries, 1 announced)
+        BGP    Preference: 170/-101
+                Next hop: 10.0.0.1 via ge-0/0/0.0
+                AS path: 3356 15169 ? (Originator) (Looped)
+"""
+    routes = parse_bgp_output(text, platform="juniper_junos")
+    assert len(routes) == 1
+    assert routes[0].as_path == "3356 15169"
+    assert routes[0].origin == "Incomplete"
+
+
 def test_bgp_route_model_defaults() -> None:
     r = BGPRoute(prefix="10.0.0.0/8")
     assert r.next_hop is None

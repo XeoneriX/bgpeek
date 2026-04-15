@@ -97,6 +97,10 @@ def _parse_junos(text: str) -> list[BGPRoute]:
         m = _JUNOS_ASPATH_RE.search(line)
         if m:
             raw = m.group(1).strip()
+            # Strip trailing parenthesised annotations like "(Originator)",
+            # "(Looped)", "(Aggregator 12345 1.2.3.4)". These appear after
+            # the origin code in Junos detail output.
+            raw = re.sub(r"(?:\s*\([^)]*\))+\s*$", "", raw).strip()
             # Origin code is at end: I/E/?
             origin_map = {"I": "IGP", "E": "EGP", "?": "Incomplete"}
             parts = raw.split()
