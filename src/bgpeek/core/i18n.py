@@ -100,6 +100,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_dns_disabled": "DNS resolution is disabled — enter an IP address",
         "dns_resolved_notice": "Resolved by bgpeek server, not by router",
         "no_output": "No output — route not found or empty response",
+        "network_not_in_table": "Network not in table",
+        "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
     },
 }
 
