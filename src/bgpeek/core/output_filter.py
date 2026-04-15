@@ -15,6 +15,42 @@ from bgpeek.core.validators import (
 _PREFIX_RE = re.compile(r"(?:(?:\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]+)/\d{1,3}")
 _BLOCK_START_WINDOW = 20
 
+# Leading banner / warning lines emitted by routers before the real output.
+# We only strip these at the very top of the output, stopping at the first
+# line that doesn't match.
+_BANNER_RE = re.compile(
+    r"""^\s*(
+        Warning:.*                 # Junos: "Warning: License key missing…"
+        | Info:.*License.*         # Huawei info/license lines
+        | %\s*License.*            # Cisco "% License expired"
+        | %\s*Warning.*License.*   # Cisco license warnings
+    )\s*$""",
+    re.VERBOSE | re.IGNORECASE,
+)
+
+
+def strip_router_banners(text: str) -> str:
+    """Remove leading license/warning banners some routers emit before
+    the real command output. Stops at the first non-banner, non-blank
+    line so content in the middle of the output is untouched.
+    """
+    if not text:
+        return text
+    lines = text.split("\n")
+    idx = 0
+    stripped_any = False
+    while idx < len(lines):
+        line = lines[idx]
+        if _BANNER_RE.match(line):
+            stripped_any = True
+            idx += 1
+            continue
+        if stripped_any and not line.strip():
+            idx += 1
+            continue
+        break
+    return "\n".join(lines[idx:]) if stripped_any else text
+
 
 def _is_too_specific(value: str, max_v4: int, max_v6: int) -> bool | None:
     """True if too specific, False if allowed, None if unparseable."""

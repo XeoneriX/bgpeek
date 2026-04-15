@@ -14,7 +14,7 @@ from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.circuit_breaker import is_device_available, record_failure, record_success
 from bgpeek.core.commands import UnsupportedPlatformError, build_command
 from bgpeek.core.dns import DNSResolutionError, resolve_target
-from bgpeek.core.output_filter import filter_route_text
+from bgpeek.core.output_filter import filter_route_text, strip_router_banners
 from bgpeek.core.rpki import validate_routes
 from bgpeek.core.ssh import SSHClient, SSHError
 from bgpeek.core.validators import TargetValidationError, is_bogon, parse_target, validate_target
@@ -220,10 +220,15 @@ async def execute_query(
         await record_success(device.name)
 
         # 6. Filter output (privileged roles bypass prefix filtering)
+        cleaned_output = (
+            strip_router_banners(raw_output)
+            if request.query_type == QueryType.BGP_ROUTE
+            else raw_output
+        )
         if request.query_type == QueryType.BGP_ROUTE and not _role_bypasses_filter(user_role):
-            filtered_output = filter_route_text(raw_output)
+            filtered_output = filter_route_text(cleaned_output)
         else:
-            filtered_output = raw_output
+            filtered_output = cleaned_output
 
         runtime_ms = int((time.monotonic() - start) * 1000)
 

@@ -196,3 +196,43 @@ def test_filter_route_records_custom_field() -> None:
 def test_filter_prefixes_parametrized(value: str, expected: bool) -> None:
     result = filter_prefixes([value])
     assert (value in result) is expected
+
+
+def test_strip_router_banners_junos_license_warning() -> None:
+    from bgpeek.core.output_filter import strip_router_banners
+
+    text = (
+        "Warning: License key missing; requires 'BGP' license\n"
+        "\n"
+        "\n"
+        "inet.0: 1073204 destinations, 4172681 routes (…)\n"
+        "8.8.8.0/24 (4 entries, 1 announced)\n"
+    )
+    cleaned = strip_router_banners(text)
+    assert "Warning:" not in cleaned
+    assert cleaned.startswith("inet.0:")
+
+
+def test_strip_router_banners_preserves_mid_content() -> None:
+    from bgpeek.core.output_filter import strip_router_banners
+
+    # Lines matching banner pattern in the middle of the output must be kept.
+    text = (
+        "inet.0: 5 destinations\n"
+        "Warning: License key missing; requires 'BGP' license\n"
+        "8.8.8.0/24\n"
+    )
+    assert strip_router_banners(text) == text
+
+
+def test_strip_router_banners_no_banner() -> None:
+    from bgpeek.core.output_filter import strip_router_banners
+
+    text = "inet.0: 5 destinations\n8.8.8.0/24\n"
+    assert strip_router_banners(text) == text
+
+
+def test_strip_router_banners_empty() -> None:
+    from bgpeek.core.output_filter import strip_router_banners
+
+    assert strip_router_banners("") == ""
