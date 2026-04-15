@@ -2,43 +2,76 @@
 
 from __future__ import annotations
 
+import ipaddress
+from typing import Literal
+
 from bgpeek.models.query import QueryType
 
-# Mapping: (platform, query_type) → command template.
-# {target} is replaced with the actual IP/prefix.
-_COMMAND_TABLE: dict[tuple[str, QueryType], str] = {
+Family = Literal["v4", "v6"]
+
+# Mapping: (platform, query_type, family) → command template.
+# {target} is replaced with the actual IP/prefix at build time.
+_COMMAND_TABLE: dict[tuple[str, QueryType, Family], str] = {
     # --- Juniper Junos ---
     (
         "juniper_junos",
         QueryType.BGP_ROUTE,
+        "v4",
     ): "show route protocol bgp table inet.0 {target} exact detail",
-    ("juniper_junos", QueryType.PING): "ping {target} count 5",
+    (
+        "juniper_junos",
+        QueryType.BGP_ROUTE,
+        "v6",
+    ): "show route protocol bgp table inet6.0 {target} exact detail",
+    ("juniper_junos", QueryType.PING, "v4"): "ping {target} count 5",
+    ("juniper_junos", QueryType.PING, "v6"): "ping inet6 {target} count 5",
     # NOTE: `traceroute monitor` may need expect_string in SSHClient.send_command
     # due to non-standard output format (interactive summary table).
-    ("juniper_junos", QueryType.TRACEROUTE): "traceroute monitor {target} count 5 summary",
+    ("juniper_junos", QueryType.TRACEROUTE, "v4"): "traceroute monitor {target} count 5 summary",
+    (
+        "juniper_junos",
+        QueryType.TRACEROUTE,
+        "v6",
+    ): "traceroute monitor inet6 {target} count 5 summary",
     # --- Cisco IOS / IOS-XE ---
-    ("cisco_ios", QueryType.BGP_ROUTE): "show bgp ipv4 unicast {target}",
-    ("cisco_ios", QueryType.PING): "ping {target} repeat 5",
-    ("cisco_ios", QueryType.TRACEROUTE): "traceroute {target}",
-    ("cisco_xe", QueryType.BGP_ROUTE): "show bgp ipv4 unicast {target}",
-    ("cisco_xe", QueryType.PING): "ping {target} repeat 5",
-    ("cisco_xe", QueryType.TRACEROUTE): "traceroute {target}",
+    ("cisco_ios", QueryType.BGP_ROUTE, "v4"): "show bgp ipv4 unicast {target}",
+    ("cisco_ios", QueryType.BGP_ROUTE, "v6"): "show bgp ipv6 unicast {target}",
+    ("cisco_ios", QueryType.PING, "v4"): "ping {target} repeat 5",
+    ("cisco_ios", QueryType.PING, "v6"): "ping ipv6 {target} repeat 5",
+    ("cisco_ios", QueryType.TRACEROUTE, "v4"): "traceroute {target}",
+    ("cisco_ios", QueryType.TRACEROUTE, "v6"): "traceroute ipv6 {target}",
+    ("cisco_xe", QueryType.BGP_ROUTE, "v4"): "show bgp ipv4 unicast {target}",
+    ("cisco_xe", QueryType.BGP_ROUTE, "v6"): "show bgp ipv6 unicast {target}",
+    ("cisco_xe", QueryType.PING, "v4"): "ping {target} repeat 5",
+    ("cisco_xe", QueryType.PING, "v6"): "ping ipv6 {target} repeat 5",
+    ("cisco_xe", QueryType.TRACEROUTE, "v4"): "traceroute {target}",
+    ("cisco_xe", QueryType.TRACEROUTE, "v6"): "traceroute ipv6 {target}",
     # --- Cisco IOS-XR ---
-    ("cisco_xr", QueryType.BGP_ROUTE): "show bgp ipv4 unicast {target}",
-    ("cisco_xr", QueryType.PING): "ping {target} count 5",
-    ("cisco_xr", QueryType.TRACEROUTE): "traceroute {target}",
+    ("cisco_xr", QueryType.BGP_ROUTE, "v4"): "show bgp ipv4 unicast {target}",
+    ("cisco_xr", QueryType.BGP_ROUTE, "v6"): "show bgp ipv6 unicast {target}",
+    ("cisco_xr", QueryType.PING, "v4"): "ping {target} count 5",
+    ("cisco_xr", QueryType.PING, "v6"): "ping ipv6 {target} count 5",
+    ("cisco_xr", QueryType.TRACEROUTE, "v4"): "traceroute {target}",
+    ("cisco_xr", QueryType.TRACEROUTE, "v6"): "traceroute ipv6 {target}",
     # --- Arista EOS ---
-    ("arista_eos", QueryType.BGP_ROUTE): "show ip bgp {target}",
-    ("arista_eos", QueryType.PING): "ping ip {target} repeat 5",
-    ("arista_eos", QueryType.TRACEROUTE): "traceroute {target}",
+    ("arista_eos", QueryType.BGP_ROUTE, "v4"): "show ip bgp {target}",
+    ("arista_eos", QueryType.BGP_ROUTE, "v6"): "show ipv6 bgp {target}",
+    ("arista_eos", QueryType.PING, "v4"): "ping ip {target} repeat 5",
+    ("arista_eos", QueryType.PING, "v6"): "ping ipv6 {target} repeat 5",
+    ("arista_eos", QueryType.TRACEROUTE, "v4"): "traceroute {target}",
+    ("arista_eos", QueryType.TRACEROUTE, "v6"): "traceroute ipv6 {target}",
     # --- Huawei VRP ---
-    ("huawei", QueryType.BGP_ROUTE): "display bgp routing-table {target}",
-    ("huawei", QueryType.PING): "ping -c 5 {target}",
-    ("huawei", QueryType.TRACEROUTE): "tracert {target}",
+    ("huawei", QueryType.BGP_ROUTE, "v4"): "display bgp routing-table {target}",
+    ("huawei", QueryType.BGP_ROUTE, "v6"): "display bgp ipv6 routing-table {target}",
+    ("huawei", QueryType.PING, "v4"): "ping -c 5 {target}",
+    ("huawei", QueryType.PING, "v6"): "ping ipv6 -c 5 {target}",
+    ("huawei", QueryType.TRACEROUTE, "v4"): "tracert {target}",
+    ("huawei", QueryType.TRACEROUTE, "v6"): "tracert ipv6 {target}",
 }
 
-# Per-platform source argument format for ping/traceroute.
-# Only applied when source_ip is provided and query_type is PING or TRACEROUTE.
+# Per-platform source argument format for ping/traceroute. Same syntax for
+# both families on every platform we currently support — Junos `inet6` /
+# Cisco `ipv6` keywords already select the family on the command itself.
 _SOURCE_FORMAT: dict[str, str] = {
     "juniper_junos": " source {source}",
     "cisco_ios": " source {source}",
@@ -50,22 +83,41 @@ _SOURCE_FORMAT: dict[str, str] = {
 
 
 class UnsupportedPlatformError(ValueError):
-    """Raised when no command mapping exists for a platform + query type."""
+    """Raised when no command mapping exists for a platform + query type + family."""
 
-    def __init__(self, platform: str, query_type: QueryType) -> None:
+    def __init__(self, platform: str, query_type: QueryType, family: Family) -> None:
         self.platform = platform
         self.query_type = query_type
-        super().__init__(f"no command defined for ({platform}, {query_type.value})")
+        self.family = family
+        super().__init__(f"no command defined for ({platform}, {query_type.value}, {family})")
+
+
+def target_family(target: str) -> Family:
+    """Detect the address family of a target IP/prefix string.
+
+    Defaults to ``"v4"`` for inputs that don't parse as either family (which
+    shouldn't happen after DNS resolution, but keeps the dispatcher total).
+    """
+    raw = target.strip().split("/", 1)[0]
+    try:
+        return "v6" if ipaddress.ip_address(raw).version == 6 else "v4"
+    except ValueError:
+        return "v4"
 
 
 def build_command(
     platform: str, query_type: QueryType, target: str, *, source_ip: str | None = None
 ) -> str:
-    """Return the CLI command string for a given platform, query type, and target."""
-    key = (platform, query_type)
-    template = _COMMAND_TABLE.get(key)
+    """Return the CLI command string for a given platform, query type, and target.
+
+    Picks IPv4- or IPv6-flavoured command syntax based on the target address
+    family. Adds a per-platform ``source`` argument when ``source_ip`` is
+    provided and the query type is ping or traceroute.
+    """
+    family = target_family(target)
+    template = _COMMAND_TABLE.get((platform, query_type, family))
     if template is None:
-        raise UnsupportedPlatformError(platform, query_type)
+        raise UnsupportedPlatformError(platform, query_type, family)
     cmd = template.format(target=target)
     if source_ip and query_type in (QueryType.PING, QueryType.TRACEROUTE):
         fmt = _SOURCE_FORMAT.get(platform)
@@ -76,4 +128,4 @@ def build_command(
 
 def supported_platforms() -> list[str]:
     """Return sorted list of platforms that have at least one command mapping."""
-    return sorted({platform for platform, _ in _COMMAND_TABLE})
+    return sorted({platform for platform, _, _ in _COMMAND_TABLE})
