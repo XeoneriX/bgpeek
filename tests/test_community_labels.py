@@ -97,20 +97,20 @@ def test_large_community_annotated_by_exact_match() -> None:
 def test_annotate_with_color() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer", color="rose")])
     result = cl.annotate("64500:100")
-    assert "rose" in result
+    assert "#fb7185" in result
     assert "customer" in result
 
 
 def test_annotate_without_color_gets_default() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer")])
     result = cl.annotate("64500:100")
-    assert "text-slate-400" in result
+    assert "#94a3b8" in result
 
 
 def test_annotate_invalid_color_falls_back() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer", color="neon")])
     result = cl.annotate("64500:100")
-    assert "text-slate-400" in result
+    assert "#94a3b8" in result
     assert "neon" not in result
 
 

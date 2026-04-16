@@ -23,20 +23,28 @@ _cache: list[CommunityLabel] = []
 _lock = asyncio.Lock()
 _loaded = False
 
-# Tailwind color token → text color class for the label.
-_COLOR_CLASSES: dict[str, str] = {
-    "amber":   "text-amber-400",
-    "emerald": "text-emerald-400",
-    "rose":    "text-rose-400",
-    "sky":     "text-sky-400",
-    "violet":  "text-violet-400",
-    "slate":   "text-slate-400",
-    "red":     "text-red-400",
-    "orange":  "text-orange-400",
-    "cyan":    "text-cyan-400",
-    "pink":    "text-pink-400",
+# Color token → hex value for inline style.  No Tailwind classes needed,
+# so adding a new color is just an API call + DB row — no CSS rebuild.
+_COLORS: dict[str, str] = {
+    "amber":   "#f59e0b",
+    "emerald": "#34d399",
+    "rose":    "#fb7185",
+    "sky":     "#38bdf8",
+    "violet":  "#a78bfa",
+    "slate":   "#94a3b8",
+    "red":     "#f87171",
+    "orange":  "#fb923c",
+    "cyan":    "#22d3ee",
+    "pink":    "#f472b6",
+    "yellow":  "#facc15",
+    "lime":    "#a3e635",
+    "teal":    "#2dd4bf",
+    "indigo":  "#818cf8",
+    "fuchsia": "#e879f9",
+    "blue":    "#60a5fa",
+    "green":   "#4ade80",
 }
-_DEFAULT_LABEL_COLOR = "text-slate-400"
+_DEFAULT_COLOR = "#94a3b8"  # slate-400
 
 
 async def refresh_cache() -> None:
@@ -93,8 +101,8 @@ def annotate(community: str) -> Markup:
 
     esc_label = escape(entry.label)
     color = entry.color if entry.color and entry.color in ALLOWED_COLORS else None
-    text_cls = _COLOR_CLASSES.get(color, _DEFAULT_LABEL_COLOR) if color else _DEFAULT_LABEL_COLOR
+    hex_color = _COLORS.get(color, _DEFAULT_COLOR) if color else _DEFAULT_COLOR
 
     return Markup(  # noqa: S704 — all interpolated values are html.escape()'d
-        f'{esc_comm} <span class="{text_cls}">{esc_label}</span>'
+        f'{esc_comm} <span style="color:{hex_color}">({esc_label})</span>'
     )
