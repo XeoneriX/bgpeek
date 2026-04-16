@@ -23,28 +23,30 @@ _cache: list[CommunityLabel] = []
 _lock = asyncio.Lock()
 _loaded = False
 
-# Color token → hex value for inline style.  No Tailwind classes needed,
-# so adding a new color is just an API call + DB row — no CSS rebuild.
-_COLORS: dict[str, str] = {
-    "amber":   "#f59e0b",
-    "emerald": "#34d399",
-    "rose":    "#fb7185",
-    "sky":     "#38bdf8",
-    "violet":  "#a78bfa",
-    "slate":   "#94a3b8",
-    "red":     "#f87171",
-    "orange":  "#fb923c",
-    "cyan":    "#22d3ee",
-    "pink":    "#f472b6",
-    "yellow":  "#facc15",
-    "lime":    "#a3e635",
-    "teal":    "#2dd4bf",
-    "indigo":  "#818cf8",
-    "fuchsia": "#e879f9",
-    "blue":    "#60a5fa",
-    "green":   "#4ade80",
+# Color token → (light hex, dark hex).  Light values target WCAG AA (≥4.5:1)
+# on slate-50 (#f8fafc); dark values target the same on slate-950 (#020617).
+# Tailwind shade mapping: light ≈ -700/-800, dark ≈ -300/-400.
+_COLORS: dict[str, tuple[str, str]] = {
+    "amber":   ("#b45309", "#fbbf24"),  # amber-700 / amber-400
+    "emerald": ("#047857", "#34d399"),  # emerald-700 / emerald-300
+    "rose":    ("#be123c", "#fb7185"),  # rose-700 / rose-400
+    "sky":     ("#0369a1", "#38bdf8"),  # sky-700 / sky-400
+    "violet":  ("#6d28d9", "#a78bfa"),  # violet-700 / violet-400
+    "slate":   ("#475569", "#94a3b8"),  # slate-600 / slate-400
+    "red":     ("#b91c1c", "#f87171"),  # red-700 / red-400
+    "orange":  ("#c2410c", "#fb923c"),  # orange-700 / orange-400
+    "cyan":    ("#0e7490", "#22d3ee"),  # cyan-700 / cyan-400
+    "pink":    ("#be185d", "#f472b6"),  # pink-700 / pink-400
+    "yellow":  ("#a16207", "#facc15"),  # yellow-700 / yellow-400
+    "lime":    ("#4d7c0f", "#a3e635"),  # lime-700 / lime-400
+    "teal":    ("#0f766e", "#2dd4bf"),  # teal-700 / teal-400
+    "indigo":  ("#4338ca", "#818cf8"),  # indigo-700 / indigo-400
+    "fuchsia": ("#a21caf", "#e879f9"),  # fuchsia-700 / fuchsia-400
+    "blue":    ("#1d4ed8", "#60a5fa"),  # blue-700 / blue-400
+    "green":   ("#15803d", "#4ade80"),  # green-700 / green-400
 }
-_DEFAULT_COLOR = "#94a3b8"  # slate-400
+_DEFAULT_LIGHT = "#475569"  # slate-600
+_DEFAULT_DARK = "#94a3b8"   # slate-400
 
 
 async def refresh_cache() -> None:
@@ -92,34 +94,36 @@ def _find_match(community: str) -> CommunityLabel | None:
     return exact or best_prefix
 
 
-def _resolve_hex(color: str | None) -> str:
-    """Return hex color for a validated color token, or the default slate."""
+def _resolve_pair(color: str | None) -> tuple[str, str]:
+    """Return (light_hex, dark_hex) for a validated color token."""
     if color and color in ALLOWED_COLORS:
-        return _COLORS.get(color, _DEFAULT_COLOR)
-    return _DEFAULT_COLOR
+        return _COLORS.get(color, (_DEFAULT_LIGHT, _DEFAULT_DARK))
+    return (_DEFAULT_LIGHT, _DEFAULT_DARK)
 
 
 def annotate(community: str) -> Markup:
-    """Return the community as HTML — colored label text if matched, plain text otherwise."""
+    """Return the community as HTML with theme-adaptive coloring via CSS variables."""
     entry = _find_match(community)
     esc_comm = escape(community)
     if entry is None:
         return Markup(esc_comm)  # noqa: S704 — value is html.escape()'d
 
     esc_label = escape(entry.label)
-    hex_color = _resolve_hex(entry.color)
+    light, dark = _resolve_pair(entry.color)
 
+    # CSS variable --c is set to the light value, overridden under .dark
+    # by a rule in the page <style> block. The span uses var(--c).
     return Markup(  # noqa: S704 — all interpolated values are html.escape()'d
-        f'<span style="color:{hex_color}">{esc_comm}</span>'
-        f' <span style="color:{hex_color}">({esc_label})</span>'
+        f'<span class="cl" style="--cl:{light};--cd:{dark}">'
+        f"{esc_comm} ({esc_label})</span>"
     )
 
 
 def row_color(communities: list[str]) -> str | None:
-    """Return a hex color for row highlight based on the most specific community match.
+    """Return the dark-theme hex color for row highlight.
 
-    Returns None if no community matches any label with a color.
-    Exact matches take priority; among prefix matches the longest pattern wins.
+    Row tinting is dark-mode only (light mode has no tint), so we
+    return only the dark hex value.
     """
     best_entry: CommunityLabel | None = None
     best_specificity = -1  # exact=1000+len, prefix=len
@@ -138,4 +142,5 @@ def row_color(communities: list[str]) -> str | None:
 
     if best_entry is None:
         return None
-    return _resolve_hex(best_entry.color)
+    _, dark = _resolve_pair(best_entry.color)
+    return dark

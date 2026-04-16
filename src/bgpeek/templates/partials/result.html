@@ -61,6 +61,7 @@
 
     {% if result.parsed_routes %}
     {# Structured BGP table #}
+    <style>.dark tr[data-row-tint] { background-color: var(--row-tint); }</style>
     <div class="overflow-x-auto">
         <table class="w-full text-[0.95rem] text-left">
             <thead class="text-xs uppercase tracking-wider
@@ -85,7 +86,7 @@
                 <tr class="border-t border-slate-200 dark:border-slate-800
                            {% if (route.active or route.best) and not _row_color %}bg-emerald-50 dark:bg-emerald-500/5{% endif %}
                            hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors"
-                    {% if _row_color %}style="background-color: {{ _row_color }}1a"{% endif %}>
+                    {% if _row_color %}data-row-tint style="--row-tint: {{ _row_color }}1a"{% endif %}>
                     <td class="w-8 min-w-[2rem] max-w-[2rem] px-0 py-2.5 text-center">
                         {% if route.active or route.best %}
                         <span class="text-emerald-700 dark:text-emerald-400 text-base leading-none" aria-label="Best route" title="{% if route.active %}Active route{% else %}Best route{% endif %}">★</span>

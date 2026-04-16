@@ -94,25 +94,27 @@ def test_large_community_annotated_by_exact_match() -> None:
     assert "Custom tag" in result
 
 
-def test_annotate_with_color_on_both_number_and_label() -> None:
+def test_annotate_with_color_uses_css_vars() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer", color="rose")])
     result = cl.annotate("64500:100")
-    assert "#fb7185" in result
     assert "customer" in result
-    # Both the community number and label should be wrapped in colored spans.
-    assert result.count("color:#fb7185") == 2
+    # Light and dark hex values set as CSS variables
+    assert "--cl:#be123c" in result  # rose-700 (light)
+    assert "--cd:#fb7185" in result  # rose-400 (dark)
+    assert 'class="cl"' in result
 
 
 def test_annotate_without_color_gets_default() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer")])
     result = cl.annotate("64500:100")
-    assert "#94a3b8" in result
+    assert "--cl:#475569" in result  # slate-600 default light
+    assert "--cd:#94a3b8" in result  # slate-400 default dark
 
 
 def test_annotate_invalid_color_falls_back() -> None:
     _install([_make("64500:100", MatchType.EXACT, "customer", color="neon")])
     result = cl.annotate("64500:100")
-    assert "#94a3b8" in result
+    assert "--cl:#475569" in result
     assert "neon" not in result
 
 
@@ -126,9 +128,9 @@ def test_row_color_no_communities() -> None:
     assert cl.row_color([]) is None
 
 
-def test_row_color_returns_hex() -> None:
+def test_row_color_returns_dark_hex() -> None:
     _install([_make("64500:1", MatchType.PREFIX, "upstream", color="sky")])
-    assert cl.row_color(["64500:1234"]) == "#38bdf8"
+    assert cl.row_color(["64500:1234"]) == "#38bdf8"  # dark value
 
 
 def test_row_color_exact_beats_prefix() -> None:
@@ -138,12 +140,53 @@ def test_row_color_exact_beats_prefix() -> None:
             _make("64500:100", MatchType.EXACT, "customer", 2, color="emerald"),
         ]
     )
-    assert cl.row_color(["64500:100"]) == "#34d399"
+    assert cl.row_color(["64500:100"]) == "#34d399"  # emerald dark value
 
 
 def test_row_color_skips_entries_without_color() -> None:
     _install([_make("64500:100", MatchType.EXACT, "tag")])
     assert cl.row_color(["64500:100"]) is None
+
+
+def _relative_luminance(hex_color: str) -> float:
+    """WCAG 2.1 relative luminance from a #rrggbb hex string."""
+    r, g, b = (int(hex_color[i : i + 2], 16) / 255.0 for i in (1, 3, 5))
+    channels = []
+    for c in (r, g, b):
+        channels.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def _contrast_ratio(fg: str, bg: str) -> float:
+    """WCAG contrast ratio between two hex colors."""
+    l1 = _relative_luminance(fg)
+    l2 = _relative_luminance(bg)
+    lighter = max(l1, l2)
+    darker = min(l1, l2)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+_BG_LIGHT = "#f8fafc"  # slate-50
+_BG_DARK = "#020617"   # slate-950
+_WCAG_AA_RATIO = 4.5   # normal text
+
+
+def test_all_light_colors_pass_wcag_aa() -> None:
+    """Every community label light color must be readable on slate-50."""
+    for name, (light, _dark) in cl._COLORS.items():
+        ratio = _contrast_ratio(light, _BG_LIGHT)
+        assert ratio >= _WCAG_AA_RATIO, (
+            f"{name} light ({light}) on {_BG_LIGHT}: contrast {ratio:.2f} < {_WCAG_AA_RATIO}"
+        )
+
+
+def test_all_dark_colors_pass_wcag_aa() -> None:
+    """Every community label dark color must be readable on slate-950."""
+    for name, (_light, dark) in cl._COLORS.items():
+        ratio = _contrast_ratio(dark, _BG_DARK)
+        assert ratio >= _WCAG_AA_RATIO, (
+            f"{name} dark ({dark}) on {_BG_DARK}: contrast {ratio:.2f} < {_WCAG_AA_RATIO}"
+        )
 
 
 def test_annotate_escapes_html() -> None:
