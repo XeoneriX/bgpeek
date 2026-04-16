@@ -64,8 +64,8 @@
     <div class="overflow-x-auto">
         <table class="w-full text-[0.95rem] text-left">
             <thead class="text-xs uppercase tracking-wider
-                          bg-slate-800 dark:bg-slate-900
-                          text-slate-400 dark:text-slate-500">
+                          bg-slate-200 dark:bg-slate-800
+                          text-slate-600 dark:text-slate-400">
                 <tr>
                     <th class="w-8 min-w-[2rem] max-w-[2rem] px-0 py-3"></th>
                     <th class="px-4 py-3">{{ t.prefix }}</th>
@@ -79,38 +79,38 @@
                     <th class="px-4 py-3 text-center">{{ t.rpki }}</th>
                 </tr>
             </thead>
-            <tbody class="font-mono bg-slate-900 dark:bg-slate-950 text-slate-200">
+            <tbody class="font-mono bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
                 {% for route in result.parsed_routes %}
                 {% set _row_color = community_row_color(route.communities) %}
-                <tr class="border-t border-slate-800 dark:border-slate-800
-                           {% if route.active or route.best and not _row_color %}bg-emerald-500/5{% endif %}
-                           hover:bg-slate-800/50 transition-colors"
+                <tr class="border-t border-slate-200 dark:border-slate-800
+                           {% if (route.active or route.best) and not _row_color %}bg-emerald-50 dark:bg-emerald-500/5{% endif %}
+                           hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors"
                     {% if _row_color %}style="background-color: {{ _row_color }}1a"{% endif %}>
                     <td class="w-8 min-w-[2rem] max-w-[2rem] px-0 py-2.5 text-center">
                         {% if route.active or route.best %}
-                        <span class="text-emerald-400 dark:text-emerald-400 text-base leading-none" aria-label="Best route" title="{% if route.active %}Active route{% else %}Best route{% endif %}">★</span>
+                        <span class="text-emerald-700 dark:text-emerald-400 text-base leading-none" aria-label="Best route" title="{% if route.active %}Active route{% else %}Best route{% endif %}">★</span>
                         {% endif %}
                     </td>
                     <td class="px-4 py-2.5 whitespace-nowrap">
                         {% if route.active or route.best %}
-                        <span class="font-bold text-emerald-300">{{ route.prefix }}</span>
+                        <span class="font-bold text-emerald-700 dark:text-emerald-300">{{ route.prefix }}</span>
                         {% else %}
-                        <span class="text-green-400">{{ route.prefix }}</span>
+                        <span class="text-green-700 dark:text-green-400">{{ route.prefix }}</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-2.5 whitespace-nowrap text-slate-300">{{ route.next_hop or '-' }}</td>
-                    <td class="px-4 py-2.5 whitespace-nowrap text-sky-300">{{ route.as_path or '-' }}</td>
-                    <td class="px-4 py-2.5 text-center whitespace-nowrap text-slate-400">{{ route.origin or '-' }}</td>
-                    <td class="px-4 py-2.5 text-right whitespace-nowrap text-amber-300">
+                    <td class="px-4 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300">{{ route.next_hop or '-' }}</td>
+                    <td class="px-4 py-2.5 whitespace-nowrap text-blue-700 dark:text-blue-300">{{ route.as_path or '-' }}</td>
+                    <td class="px-4 py-2.5 text-center whitespace-nowrap text-slate-600 dark:text-slate-400">{{ route.origin or '-' }}</td>
+                    <td class="px-4 py-2.5 text-right whitespace-nowrap text-amber-700 dark:text-amber-300">
                         {{ route.local_pref if route.local_pref is not none else '-' }}
                     </td>
-                    <td class="px-4 py-2.5 text-right whitespace-nowrap text-slate-400">
+                    <td class="px-4 py-2.5 text-right whitespace-nowrap text-slate-600 dark:text-slate-400">
                         {{ route.med if route.med is not none else '-' }}
                     </td>
-                    <td class="px-4 py-2.5 whitespace-nowrap text-slate-400">
+                    <td class="px-4 py-2.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
                         {{ route.age or '-' }}
                     </td>
-                    <td class="px-4 py-2.5 text-xs text-slate-400">
+                    <td class="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
                         {% if route.communities %}
                         <div class="flex flex-wrap gap-1">
                             {% for c in route.communities %}{{ c | annotate_community }}{% if not loop.last %} {% endif %}{% endfor %}
@@ -119,26 +119,26 @@
                     </td>
                     <td class="px-4 py-2.5 text-center whitespace-nowrap">
                         {% if route.rpki_status == 'valid' %}
-                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/40 text-emerald-300">
+                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
                             {{ t.rpki_valid }}
                         </span>
                         {% elif route.rpki_status == 'invalid' %}
-                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-red-900/40 text-red-300">
+                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
                             {{ t.rpki_invalid }}
                         </span>
                         {% elif route.rpki_status == 'not_found' %}
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-700/40 text-slate-400">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700/40 text-slate-500 dark:text-slate-400">
                             {{ t.rpki_not_found }}
                         </span>
                         {% elif route.rpki_status == 'unknown' %}
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-900/40 text-amber-300"
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
                               title="{{ t.rpki_unknown }}">
                             ?
                         </span>
                         {% else %}
-                        <span class="text-slate-500">-</span>
+                        <span class="text-slate-400 dark:text-slate-500">-</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -153,7 +153,7 @@
                         hover:bg-slate-50 dark:hover:bg-slate-800/50 select-none">
             {{ t.show_raw }}
         </summary>
-        <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
+        <pre class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-green-400 text-sm leading-relaxed
                     p-4 overflow-x-auto max-h-[400px] overflow-y-auto scrollbar-thin
                     font-mono select-text">{{ result.filtered_output }}</pre>
     </details>
@@ -174,7 +174,7 @@
                         hover:bg-slate-50 dark:hover:bg-slate-800/50 select-none">
             {{ t.show_raw }}
         </summary>
-        <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
+        <pre class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-green-400 text-sm leading-relaxed
                     p-4 overflow-x-auto max-h-[400px] overflow-y-auto scrollbar-thin
                     font-mono select-text">{{ result.filtered_output }}</pre>
     </details>
@@ -182,7 +182,7 @@
     {% else %}
     {# Raw output fallback (ping, traceroute) #}
     {% if result.filtered_output and result.filtered_output.strip() %}
-    <pre class="bg-slate-900 dark:bg-slate-950 text-green-400 text-sm leading-relaxed
+    <pre class="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-green-400 text-sm leading-relaxed
                 p-4 overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin
                 font-mono select-text">{{ result.filtered_output }}</pre>
     {% else %}
