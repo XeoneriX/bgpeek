@@ -109,7 +109,11 @@
                         {{ route.age or '-' }}
                     </td>
                     <td class="px-4 py-2.5 text-xs text-slate-400">
-                        {{ route.communities | map('annotate_community') | join(', ') if route.communities else '-' }}
+                        {% if route.communities %}
+                        <div class="flex flex-wrap gap-1">
+                            {% for c in route.communities %}{{ c | annotate_community }}{% if not loop.last %} {% endif %}{% endfor %}
+                        </div>
+                        {% else %}-{% endif %}
                     </td>
                     <td class="px-4 py-2.5 text-center whitespace-nowrap">
                         {% if route.rpki_status == 'valid' %}

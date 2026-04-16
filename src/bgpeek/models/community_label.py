@@ -15,12 +15,18 @@ class MatchType(StrEnum):
     PREFIX = "prefix"
 
 
+ALLOWED_COLORS: frozenset[str] = frozenset({
+    "amber", "emerald", "rose", "sky", "violet", "slate", "red", "orange", "cyan", "pink",
+})
+
+
 class CommunityLabelBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     pattern: str = Field(min_length=1, max_length=64)
     match_type: MatchType = MatchType.EXACT
     label: str = Field(min_length=1, max_length=255)
+    color: str | None = Field(default=None, max_length=16)
 
 
 class CommunityLabelCreate(CommunityLabelBase):
@@ -33,6 +39,7 @@ class CommunityLabelUpdate(BaseModel):
     pattern: str | None = Field(default=None, min_length=1, max_length=64)
     match_type: MatchType | None = None
     label: str | None = Field(default=None, min_length=1, max_length=255)
+    color: str | None = Field(default=None, max_length=16)
 
 
 class CommunityLabel(CommunityLabelBase):

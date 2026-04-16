@@ -14,13 +14,14 @@ from bgpeek.models.community_label import (
 async def create_label(pool: asyncpg.Pool, payload: CommunityLabelCreate) -> CommunityLabel:
     row = await pool.fetchrow(
         """
-        INSERT INTO community_labels (pattern, match_type, label)
-        VALUES ($1, $2, $3)
+        INSERT INTO community_labels (pattern, match_type, label, color)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
         """,
         payload.pattern,
         payload.match_type.value,
         payload.label,
+        payload.color,
     )
     assert row is not None
     return CommunityLabel.model_validate(dict(row))
@@ -38,7 +39,7 @@ async def list_labels(pool: asyncpg.Pool) -> list[CommunityLabel]:
     return [CommunityLabel.model_validate(dict(r)) for r in rows]
 
 
-_UPDATABLE: frozenset[str] = frozenset({"pattern", "match_type", "label"})
+_UPDATABLE: frozenset[str] = frozenset({"pattern", "match_type", "label", "color"})
 
 
 async def update_label(
