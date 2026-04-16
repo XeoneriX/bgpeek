@@ -67,6 +67,11 @@ def is_bogon(network: IPv4Network | IPv6Network) -> str | None:
     return None
 
 
+def is_non_global_unicast_v6(network: IPv6Network) -> bool:
+    """Return True if `network` is an IPv6 address outside Global Unicast (2000::/3)."""
+    return not network.subnet_of(_GLOBAL_UNICAST_V6)
+
+
 def is_default_route(network: IPv4Network | IPv6Network) -> bool:
     """Return True if `network` is 0.0.0.0/0 or ::/0."""
     return int(network.network_address) == 0 and network.prefixlen == 0
@@ -98,6 +103,8 @@ _DIAG_REJECT_V6: tuple[tuple[IPv6Network, str], ...] = (
     (IPv6Network("fe80::/10"), "IPv6 link-local (fe80::/10)"),
 )
 
+_GLOBAL_UNICAST_V6 = IPv6Network("2000::/3")
+
 
 def diagnostic_target_rejection(network: IPv4Network | IPv6Network) -> str | None:
     """Return a rejection reason if `network` is unsuitable for ping/traceroute.
@@ -116,6 +123,8 @@ def diagnostic_target_rejection(network: IPv4Network | IPv6Network) -> str | Non
     for net6, label6 in _DIAG_REJECT_V6:
         if network.subnet_of(net6):
             return label6
+    if is_non_global_unicast_v6(network):
+        return "IPv6 target must be within Global Unicast range (2000::/3)"
     return None
 
 
@@ -151,6 +160,11 @@ def validate_target(
     bogon = is_bogon(network)
     if bogon is not None:
         raise TargetValidationError(f"bogon prefix ({bogon})", value)
+
+    if isinstance(network, IPv6Network) and is_non_global_unicast_v6(network):
+        raise TargetValidationError(
+            "IPv6 target must be within Global Unicast range (2000::/3)", value
+        )
 
     if prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6):
         raise TargetValidationError("prefix too specific", value)

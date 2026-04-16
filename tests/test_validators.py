@@ -15,6 +15,7 @@ from bgpeek.core.validators import (
     diagnostic_target_rejection,
     is_bogon,
     is_default_route,
+    is_non_global_unicast_v6,
     is_unspecified_host,
     parse_target,
     prefix_too_specific,
@@ -172,6 +173,50 @@ def test_is_unspecified_host() -> None:
     assert is_unspecified_host(IPv6Network("2001::/128")) is False
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        IPv6Network("::/1"),
+        IPv6Network("::/28"),
+        IPv6Network("fc00::/7"),
+        IPv6Network("fe80::/10"),
+        IPv6Network("ff00::/8"),
+        IPv6Network("100::/64"),
+        IPv6Network("1000::/4"),
+    ],
+)
+def test_is_non_global_unicast_v6_blocks(value: IPv6Network) -> None:
+    assert is_non_global_unicast_v6(value) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        IPv6Network("2001:4860::/32"),
+        IPv6Network("2606:4700::/32"),
+        IPv6Network("2a00::/12"),
+        IPv6Network("2000::/3"),
+    ],
+)
+def test_is_non_global_unicast_v6_allows(value: IPv6Network) -> None:
+    assert is_non_global_unicast_v6(value) is False
+
+
+@pytest.mark.parametrize(
+    ("value", "reason_part"),
+    [
+        ("::/1", "Global Unicast"),
+        ("::/28", "Global Unicast"),
+        ("1000::/4", "Global Unicast"),
+        ("4000::/2", "Global Unicast"),
+    ],
+)
+def test_validate_target_rejects_non_gua_ipv6(value: str, reason_part: str) -> None:
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target(value)
+    assert reason_part in excinfo.value.reason
+
+
 def test_validate_target_custom_thresholds() -> None:
     result = validate_target("8.8.8.0/25", max_v4=25)
     assert result == IPv4Network("8.8.8.0/25")
@@ -194,6 +239,8 @@ def test_validate_target_custom_thresholds() -> None:
         ("::/0", "default route"),
         ("ff02::1", "multicast"),
         ("fe80::1", "link-local"),
+        ("::/1", "Global Unicast"),
+        ("100::1", "Global Unicast"),
     ],
 )
 def test_diagnostic_target_rejection_blocks(value: str, reason_part: str) -> None:
