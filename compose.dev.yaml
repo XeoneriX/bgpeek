@@ -42,6 +42,27 @@ services:
       PATH: /opt/venv/bin:/usr/local/bin:/usr/bin:/bin
 
   # --- Dev-only helpers ---
+  # Rebuilds Tailwind CSS on every template change so contributors never need
+  # a host tailwindcss binary. Writes through the bind-mount so the bgpeek
+  # service picks up the new file immediately.
+  tailwind:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    working_dir: /app
+    command:
+      - /usr/local/bin/tailwindcss
+      - -i
+      - /app/src/bgpeek/static/css/input.css
+      - -o
+      - /app/src/bgpeek/static/css/tailwind.css
+      - --watch
+    volumes:
+      - ./src:/app/src
+      - ./tailwind.config.js:/app/tailwind.config.js:ro
+    restart: unless-stopped
+
   adminer:
     image: adminer:5
     ports:

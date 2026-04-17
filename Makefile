@@ -58,11 +58,13 @@ dev-rebuild: ## Rebuild images from scratch and restart stack
 migrate: ## Apply database migrations against $BGPEEK_DATABASE_URL (or default)
 	$(UV) run bgpeek-migrate
 
-css: ## Build Tailwind CSS (one-shot, minified)
-	$(TAILWINDCSS) -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
+css: ## Build Tailwind CSS one-shot (via Docker, no host binary required)
+	$(DOCKER_COMPOSE) run --rm --no-deps tailwind \
+	  /usr/local/bin/tailwindcss -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify
 
-css-watch: ## Build Tailwind CSS in watch mode (for development)
-	$(TAILWINDCSS) -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --watch
+css-watch: ## Build Tailwind CSS in watch mode (starts the tailwind service)
+	$(DOCKER_COMPOSE) up -d tailwind
+	$(DOCKER_COMPOSE) logs -f tailwind
 
 clean: ## Remove caches and build artifacts
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov dist
