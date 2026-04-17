@@ -77,21 +77,24 @@
             <input type="text" name="location" value="{{ form.location or '' }}" maxlength="64"
                    class="{{ field_class }}">
         </label>
+    </div>
 
+    <fieldset class="space-y-3">
+        <legend class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t.admin_devices_source_addresses }}</legend>
+        <p class="text-xs text-slate-500 dark:text-slate-400 -mt-2">{{ t.admin_devices_source_hint }}</p>
         <label class="block">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t.admin_devices_source4 }}</span>
+            <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ t.admin_devices_source4 }}</span>
             <input type="text" name="source4" value="{{ form.source4 or '' }}"
                    placeholder="203.0.113.1"
                    class="{{ field_class }} font-mono">
         </label>
-
         <label class="block">
-            <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t.admin_devices_source6 }}</span>
+            <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ t.admin_devices_source6 }}</span>
             <input type="text" name="source6" value="{{ form.source6 or '' }}"
                    placeholder="2001:db8::1"
                    class="{{ field_class }} font-mono">
         </label>
-    </div>
+    </fieldset>
 
     <label class="block">
         <span class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ t.admin_devices_description }}</span>
