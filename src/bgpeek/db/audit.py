@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import asyncpg
 
 from bgpeek.models.audit import AuditAction, AuditEntry, AuditEntryCreate
@@ -106,6 +108,30 @@ async def count_audit_entries(
     query = f"SELECT COUNT(*) FROM audit_log{where}"  # noqa: S608
     result = await pool.fetchval(query, *values)
     return int(result)
+
+
+async def device_query_stats(
+    pool: asyncpg.Pool,
+    *,
+    since_days: int = 7,
+) -> dict[int, tuple[datetime, int]]:
+    """Return ``{device_id: (last_query_at, count)}`` over the last ``since_days``.
+
+    Counts only successful ``query`` actions. Devices with no queries in the
+    window are absent from the returned dict.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT device_id, MAX(timestamp) AS last_query, COUNT(*) AS query_count
+        FROM audit_log
+        WHERE device_id IS NOT NULL
+          AND action = 'query'
+          AND timestamp > now() - make_interval(days => $1)
+        GROUP BY device_id
+        """,
+        since_days,
+    )
+    return {int(r["device_id"]): (r["last_query"], int(r["query_count"])) for r in rows}
 
 
 async def cleanup_old_entries(pool: asyncpg.Pool, ttl_days: int) -> int:

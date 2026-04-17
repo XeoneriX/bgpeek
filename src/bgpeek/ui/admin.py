@@ -19,6 +19,7 @@ from bgpeek.core.commands import supported_platforms
 from bgpeek.core.community_labels import color_pairs as _color_pairs
 from bgpeek.core.community_labels import refresh_cache as refresh_label_cache
 from bgpeek.core.templates import templates
+from bgpeek.db import audit as audit_crud
 from bgpeek.db import community_labels as label_crud
 from bgpeek.db import credentials as credential_crud
 from bgpeek.db import devices as device_crud
@@ -139,6 +140,7 @@ async def devices_list(
     creds = await credential_crud.list_credentials(pool)
     credential_names = {c.id: c.name for c in creds}
     failures = await cb_failure_counts([d.name for d in devices])
+    query_stats = await audit_crud.device_query_stats(pool, since_days=7)
     return templates.TemplateResponse(
         request=request,
         name="admin/devices_list.html",
@@ -150,6 +152,7 @@ async def devices_list(
             "credential_names": credential_names,
             "cb_failures": failures,
             "cb_threshold": settings.circuit_breaker_threshold,
+            "query_stats": query_stats,
         },
     )
 

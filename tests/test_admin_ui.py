@@ -187,6 +187,10 @@ def test_devices_list_renders() -> None:
             "bgpeek.ui.admin.cb_failure_counts",
             new=AsyncMock(return_value={}),
         ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         client = TestClient(app)
         response = client.get("/admin/devices", headers={"X-API-Key": "any"})
@@ -223,6 +227,10 @@ def test_devices_list_renders_circuit_breaker_status() -> None:
             "bgpeek.ui.admin.cb_failure_counts",
             new=AsyncMock(return_value={"rt1": 2}),
         ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         client = TestClient(app)
         response = client.get("/admin/devices", headers={"X-API-Key": "any"})
@@ -255,12 +263,90 @@ def test_devices_list_renders_circuit_breaker_open() -> None:
             "bgpeek.ui.admin.cb_failure_counts",
             new=AsyncMock(return_value={"rt1": 999}),  # well over any threshold
         ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
+            new=AsyncMock(return_value={}),
+        ),
     ):
         client = TestClient(app)
         response = client.get("/admin/devices", headers={"X-API-Key": "any"})
 
     assert response.status_code == 200
     assert "Open (blocked)" in response.text
+
+
+def test_devices_list_renders_query_usage() -> None:
+    from datetime import UTC, datetime
+
+    from bgpeek.models.device import Device
+
+    device = Device.model_validate(_DEVICE_ROW)
+    last_seen = datetime(2026, 4, 17, 10, 30, tzinfo=UTC)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch(
+            "bgpeek.ui.admin.device_crud.list_devices",
+            new=AsyncMock(return_value=[device]),
+        ),
+        patch(
+            "bgpeek.ui.admin.credential_crud.list_credentials",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "bgpeek.ui.admin.cb_failure_counts",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
+            new=AsyncMock(return_value={1: (last_seen, 42)}),
+        ),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/devices", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert "42 queries" in response.text
+    assert "2026-04-17 10:30" in response.text
+
+
+def test_devices_list_renders_never_queried() -> None:
+    from bgpeek.models.device import Device
+
+    device = Device.model_validate(_DEVICE_ROW)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch(
+            "bgpeek.ui.admin.device_crud.list_devices",
+            new=AsyncMock(return_value=[device]),
+        ),
+        patch(
+            "bgpeek.ui.admin.credential_crud.list_credentials",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "bgpeek.ui.admin.cb_failure_counts",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
+            new=AsyncMock(return_value={}),
+        ),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/devices", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert "never queried" in response.text
 
 
 def test_devices_list_has_query_link() -> None:
@@ -284,6 +370,10 @@ def test_devices_list_has_query_link() -> None:
         ),
         patch(
             "bgpeek.ui.admin.cb_failure_counts",
+            new=AsyncMock(return_value={}),
+        ),
+        patch(
+            "bgpeek.ui.admin.audit_crud.device_query_stats",
             new=AsyncMock(return_value={}),
         ),
     ):
