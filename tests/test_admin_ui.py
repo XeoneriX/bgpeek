@@ -65,6 +65,12 @@ _ADMIN_ROUTES: list[tuple[str, str]] = [
     ("GET", "/admin/community-labels/1/edit"),
     ("POST", "/admin/community-labels/1"),
     ("POST", "/admin/community-labels/1/delete"),
+    ("GET", "/admin/webhooks"),
+    ("GET", "/admin/webhooks/new"),
+    ("POST", "/admin/webhooks"),
+    ("GET", "/admin/webhooks/1/edit"),
+    ("POST", "/admin/webhooks/1"),
+    ("POST", "/admin/webhooks/1/delete"),
 ]
 
 
@@ -1454,6 +1460,244 @@ def test_labels_delete_redirects() -> None:
         client = TestClient(app)
         response = client.post(
             "/admin/community-labels/1/delete",
+            headers={"X-API-Key": "any"},
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    delete_mock.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Admin webhooks CRUD
+# ---------------------------------------------------------------------------
+
+
+_WEBHOOK_ROW = {
+    "id": 1,
+    "name": "slack-noc",
+    "url": "https://hooks.slack.com/services/T0/B0/xxx",
+    "secret": "shhh",
+    "events": ["device_create", "login"],
+    "enabled": True,
+    "created_at": _NOW,
+    "updated_at": _NOW,
+}
+
+
+def test_webhooks_list_renders() -> None:
+    from bgpeek.models.webhook import Webhook
+
+    hook = Webhook.model_validate(_WEBHOOK_ROW)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch(
+            "bgpeek.ui.admin.webhook_crud.list_webhooks",
+            new=AsyncMock(return_value=[hook]),
+        ),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/webhooks", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert "slack-noc" in response.text
+    assert "hooks.slack.com" in response.text
+    # Secret must NOT be echoed into list markup
+    assert "shhh" not in response.text
+    assert "/admin/webhooks/1/edit" in response.text
+
+
+def test_webhooks_new_form_renders_event_checkboxes() -> None:
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/webhooks/new", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert 'name="events" value="query"' in response.text
+    assert 'name="events" value="device_create"' in response.text
+    assert 'name="events" value="login"' in response.text
+
+
+def test_webhooks_create_requires_at_least_one_event() -> None:
+    create_mock = AsyncMock()
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.webhook_crud.create_webhook", new=create_mock),
+    ):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/webhooks",
+            headers={"X-API-Key": "any"},
+            data={
+                "name": "test",
+                "url": "https://example.com/hook",
+                "enabled": "1",
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 400
+    assert "select at least one event" in response.text
+    create_mock.assert_not_awaited()
+
+
+def test_webhooks_create_redirects() -> None:
+    create_mock = AsyncMock()
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.webhook_crud.create_webhook", new=create_mock),
+    ):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/webhooks",
+            headers={"X-API-Key": "any"},
+            data={
+                "name": "slack-noc",
+                "url": "https://example.com/hook",
+                "events": ["device_create", "login"],
+                "secret": "abc123",
+                "enabled": "1",
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin/webhooks"
+    create_mock.assert_awaited_once()
+    payload = create_mock.await_args.args[1]
+    assert payload.name == "slack-noc"
+    assert [e.value for e in payload.events] == ["device_create", "login"]
+    assert payload.secret == "abc123"  # noqa: S105
+
+
+def test_webhooks_create_rejects_private_url() -> None:
+    create_mock = AsyncMock()
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.webhook_crud.create_webhook", new=create_mock),
+    ):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/webhooks",
+            headers={"X-API-Key": "any"},
+            data={
+                "name": "internal",
+                "url": "http://10.0.0.1/hook",  # private IP — SSRF blocked
+                "events": ["login"],
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 400
+    create_mock.assert_not_awaited()
+
+
+def test_webhooks_edit_form_hides_secret() -> None:
+    from bgpeek.models.webhook import Webhook
+
+    hook = Webhook.model_validate(_WEBHOOK_ROW)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch(
+            "bgpeek.ui.admin.webhook_crud.get_webhook",
+            new=AsyncMock(return_value=hook),
+        ),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/webhooks/1/edit", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert "shhh" not in response.text
+    assert 'value="slack-noc"' in response.text
+    # The existing events are pre-checked. Whitespace/attribute order in
+    # rendered HTML is flexible, so check for the checkbox value and the
+    # presence of a nearby `checked` attribute.
+    import re
+
+    for event_name in ("device_create", "login"):
+        assert re.search(
+            rf'value="{event_name}"[^>]*\s+checked\b',
+            response.text,
+        ), f"expected {event_name} checkbox to be pre-checked"
+
+
+def test_webhooks_update_empty_secret_keeps_existing() -> None:
+    from bgpeek.models.webhook import Webhook
+
+    hook = Webhook.model_validate(_WEBHOOK_ROW)
+    update_mock = AsyncMock(return_value=hook)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.webhook_crud.update_webhook", new=update_mock),
+    ):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/webhooks/1",
+            headers={"X-API-Key": "any"},
+            data={
+                "name": "slack-noc",
+                "url": "https://example.com/hook",
+                "events": ["login"],
+                "enabled": "1",
+                # secret intentionally omitted
+            },
+            follow_redirects=False,
+        )
+
+    assert response.status_code == 303
+    update_mock.assert_awaited_once()
+    payload = update_mock.await_args.args[2]
+    assert "secret" not in payload.model_dump(exclude_unset=True)
+
+
+def test_webhooks_delete_redirects() -> None:
+    delete_mock = AsyncMock(return_value=True)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.webhook_crud.delete_webhook", new=delete_mock),
+    ):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/webhooks/1/delete",
             headers={"X-API-Key": "any"},
             follow_redirects=False,
         )

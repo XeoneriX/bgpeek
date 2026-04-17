@@ -35,6 +35,7 @@ from bgpeek.models.community_label import (
 from bgpeek.models.credential import CredentialCreate, CredentialUpdate
 from bgpeek.models.device import DeviceCreate, DeviceUpdate
 from bgpeek.models.user import User, UserCreate, UserCreateLocal, UserRole, UserUpdate
+from bgpeek.models.webhook import WebhookCreate, WebhookEvent, WebhookUpdate
 
 router = APIRouter(prefix="/admin", tags=["admin-ui"])
 
@@ -1033,3 +1034,230 @@ async def community_labels_delete(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="community label not found")
     await refresh_label_cache()
     return RedirectResponse("/admin/community-labels", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ---------------------------------------------------------------------------
+# Webhooks
+# ---------------------------------------------------------------------------
+
+
+_AVAILABLE_EVENTS = [e.value for e in WebhookEvent]
+
+
+async def _render_webhook_form(
+    request: Request,
+    *,
+    title: str,
+    form_action: str,
+    form: dict[str, object],
+    is_edit: bool,
+    error: str | None = None,
+    status_code: int = 200,
+) -> Response:
+    t = request.state.t
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/webhooks_form.html",
+        context={
+            "version": __version__,
+            "t": t,
+            "lang": request.state.lang,
+            "title": title,
+            "form_action": form_action,
+            "form": form,
+            "error": error,
+            "available_events": _AVAILABLE_EVENTS,
+            "secret_hint": t["admin_wh_secret_hint_edit"]
+            if is_edit
+            else t["admin_wh_secret_hint_new"],
+            "secret_placeholder": t["admin_wh_secret_placeholder_edit"] if is_edit else "",
+        },
+        status_code=status_code,
+    )
+
+
+def _normalize_event_list(events: list[str]) -> list[WebhookEvent]:
+    result: list[WebhookEvent] = []
+    for e in events:
+        if e not in _AVAILABLE_EVENTS:
+            raise ValueError(f"invalid event: {e!r}")
+        result.append(WebhookEvent(e))
+    return result
+
+
+@router.get("/webhooks", response_class=HTMLResponse)
+async def webhooks_list(
+    request: Request,
+    _user: User = Depends(_admin),  # noqa: B008
+) -> Response:
+    hooks = await webhook_crud.list_webhooks(get_pool())
+    # Mask secrets for display (just in case a template ever dumps them).
+    hooks = [h.mask_secret() for h in hooks]
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/webhooks_list.html",
+        context={
+            "version": __version__,
+            "t": request.state.t,
+            "lang": request.state.lang,
+            "webhooks": hooks,
+        },
+    )
+
+
+@router.get("/webhooks/new", response_class=HTMLResponse)
+async def webhooks_new(
+    request: Request,
+    _user: User = Depends(_admin),  # noqa: B008
+) -> Response:
+    form: dict[str, object] = {"enabled": True, "events": []}
+    return await _render_webhook_form(
+        request,
+        title=request.state.t["admin_wh_new"],
+        form_action="/admin/webhooks",
+        form=form,
+        is_edit=False,
+    )
+
+
+@router.post("/webhooks")
+async def webhooks_create(
+    request: Request,
+    _user: User = Depends(_admin),  # noqa: B008
+    name: str = Form(...),
+    url: str = Form(...),
+    secret: str | None = Form(None),
+    enabled: str | None = Form(None),
+) -> Response:
+    raw_events = (await request.form()).getlist("events")
+    events_list = [str(e) for e in raw_events]
+    raw: dict[str, object] = {
+        "name": name,
+        "url": url,
+        "events": events_list,
+        "enabled": enabled == "1",
+    }
+    if not events_list:
+        return await _render_webhook_form(
+            request,
+            title=request.state.t["admin_wh_new"],
+            form_action="/admin/webhooks",
+            form=raw,
+            is_edit=False,
+            error="select at least one event",
+            status_code=400,
+        )
+    try:
+        normalized_events = _normalize_event_list(events_list)
+        payload = WebhookCreate(
+            name=name,
+            url=url,
+            events=normalized_events,
+            enabled=enabled == "1",
+            secret=secret or None,
+        )
+    except (ValidationError, ValueError) as exc:
+        return await _render_webhook_form(
+            request,
+            title=request.state.t["admin_wh_new"],
+            form_action="/admin/webhooks",
+            form=raw,
+            is_edit=False,
+            error=str(exc),
+            status_code=400,
+        )
+
+    await webhook_crud.create_webhook(get_pool(), payload)
+    return RedirectResponse("/admin/webhooks", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/webhooks/{webhook_id}/edit", response_class=HTMLResponse)
+async def webhooks_edit(
+    webhook_id: int,
+    request: Request,
+    _user: User = Depends(_admin),  # noqa: B008
+) -> Response:
+    hook = await webhook_crud.get_webhook(get_pool(), webhook_id)
+    if hook is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="webhook not found")
+    form = hook.model_dump()
+    # events come back as a list of WebhookEvent enums — template expects raw strings
+    form["events"] = [e.value if isinstance(e, WebhookEvent) else str(e) for e in hook.events]
+    form["secret"] = ""  # never echo back; blank = keep existing
+    return await _render_webhook_form(
+        request,
+        title=request.state.t["admin_wh_edit"],
+        form_action=f"/admin/webhooks/{webhook_id}",
+        form=form,
+        is_edit=True,
+    )
+
+
+@router.post("/webhooks/{webhook_id}")
+async def webhooks_update(
+    webhook_id: int,
+    request: Request,
+    _user: User = Depends(_admin),  # noqa: B008
+    name: str = Form(...),
+    url: str = Form(...),
+    secret: str | None = Form(None),
+    enabled: str | None = Form(None),
+) -> Response:
+    raw_events = (await request.form()).getlist("events")
+    events_list = [str(e) for e in raw_events]
+    raw: dict[str, object] = {
+        "name": name,
+        "url": url,
+        "events": events_list,
+        "enabled": enabled == "1",
+    }
+    if not events_list:
+        return await _render_webhook_form(
+            request,
+            title=request.state.t["admin_wh_edit"],
+            form_action=f"/admin/webhooks/{webhook_id}",
+            form=raw,
+            is_edit=True,
+            error="select at least one event",
+            status_code=400,
+        )
+
+    # Empty secret field means "keep existing"; non-empty replaces.
+    update_fields: dict[str, object] = {
+        "name": name,
+        "url": url,
+        "events": events_list,
+        "enabled": enabled == "1",
+    }
+    if secret:
+        update_fields["secret"] = secret
+
+    try:
+        _normalize_event_list(events_list)
+        payload = WebhookUpdate(**update_fields)  # type: ignore[arg-type]
+    except (ValidationError, ValueError) as exc:
+        return await _render_webhook_form(
+            request,
+            title=request.state.t["admin_wh_edit"],
+            form_action=f"/admin/webhooks/{webhook_id}",
+            form=raw,
+            is_edit=True,
+            error=str(exc),
+            status_code=400,
+        )
+
+    updated = await webhook_crud.update_webhook(get_pool(), webhook_id, payload)
+    if updated is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="webhook not found")
+    return RedirectResponse("/admin/webhooks", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/webhooks/{webhook_id}/delete")
+async def webhooks_delete(
+    webhook_id: int,
+    _user: User = Depends(_admin),  # noqa: B008
+) -> Response:
+    deleted = await webhook_crud.delete_webhook(get_pool(), webhook_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="webhook not found")
+    return RedirectResponse("/admin/webhooks", status_code=status.HTTP_303_SEE_OTHER)

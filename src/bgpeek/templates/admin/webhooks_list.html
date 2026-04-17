@@ -1,0 +1,91 @@
+{% extends "admin/base.html" %}
+{% set active = "webhooks" %}
+
+{% block title %}bgpeek &middot; {{ t.admin_webhooks }}{% endblock %}
+
+{% block admin_content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-xl font-semibold">{{ t.admin_webhooks }}</h1>
+    <a href="/admin/webhooks/new"
+       class="rounded-md bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900
+              px-4 py-2 text-sm font-medium
+              hover:bg-slate-800 dark:hover:bg-white transition-colors">
+        {{ t.admin_wh_add }}
+    </a>
+</div>
+
+<p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t.admin_wh_intro }}</p>
+
+{% if webhooks %}
+<div class="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-800 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <tr>
+                <th class="px-4 py-2 font-medium">{{ t.admin_wh_name }}</th>
+                <th class="px-4 py-2 font-medium">{{ t.admin_wh_url }}</th>
+                <th class="px-4 py-2 font-medium">{{ t.admin_wh_events }}</th>
+                <th class="px-4 py-2 font-medium">{{ t.admin_wh_signed }}</th>
+                <th class="px-4 py-2 font-medium">{{ t.admin_devices_status }}</th>
+                <th class="px-4 py-2 font-medium text-right">{{ t.actions }}</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
+            {% for w in webhooks %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                <td class="px-4 py-2 font-medium text-slate-900 dark:text-slate-100">{{ w.name }}</td>
+                <td class="px-4 py-2 text-slate-600 dark:text-slate-300 font-mono text-xs break-all max-w-md">{{ w.url }}</td>
+                <td class="px-4 py-2 text-xs">
+                    <div class="flex flex-wrap gap-1">
+                        {% for e in w.events %}
+                        <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono">
+                            {{ e.value if e.value is defined else e }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td class="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">
+                    {% if w.secret %}
+                    <span class="inline-flex items-center gap-1">
+                        <svg class="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+                        </svg>
+                        {{ t.admin_wh_signed_yes }}
+                    </span>
+                    {% else %}
+                    <span class="text-slate-400 dark:text-slate-500">{{ t.admin_wh_signed_no }}</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2">
+                    {% if w.enabled %}
+                    <span class="inline-block px-2 py-0.5 text-xs rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                        {{ t.admin_devices_enabled }}
+                    </span>
+                    {% else %}
+                    <span class="inline-block px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                        {{ t.admin_devices_disabled }}
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2 text-right whitespace-nowrap">
+                    <a href="/admin/webhooks/{{ w.id }}/edit"
+                       class="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs">
+                        {{ t.admin_edit }}
+                    </a>
+                    <form method="post" action="/admin/webhooks/{{ w.id }}/delete" class="inline ml-3"
+                          onsubmit="return confirm('{{ t.admin_confirm_delete }} {{ w.name }}?');">
+                        <button type="submit" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-200 text-xs">
+                            {{ t.admin_delete }}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-16 text-slate-500 dark:text-slate-400 text-sm">
+    {{ t.admin_wh_empty }}
+</div>
+{% endif %}
+{% endblock %}
