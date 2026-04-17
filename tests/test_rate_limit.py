@@ -176,10 +176,21 @@ async def test_graceful_degradation_redis_unavailable():
 
 
 async def test_graceful_degradation_redis_error_during_pipeline():
-    mock_redis = AsyncMock()
-    broken_pipe = AsyncMock()
-    broken_pipe.execute = AsyncMock(side_effect=ConnectionError("boom"))
-    mock_redis.pipeline = lambda transaction=True: broken_pipe  # noqa: ARG005
+    class BrokenPipeline:
+        def zremrangebyscore(self, key: str, lo: float, hi: float) -> BrokenPipeline:  # noqa: ARG002
+            return self
+
+        def zcard(self, key: str) -> BrokenPipeline:  # noqa: ARG002
+            return self
+
+        async def execute(self) -> list[object]:
+            raise ConnectionError("boom")
+
+    class BrokenRedis:
+        def pipeline(self, transaction: bool = True) -> BrokenPipeline:  # noqa: ARG002
+            return BrokenPipeline()
+
+    mock_redis = BrokenRedis()
 
     with patch("bgpeek.core.rate_limit.get_redis", return_value=mock_redis):
         result = await check_rate_limit("test:broken", limit=5, window=60)

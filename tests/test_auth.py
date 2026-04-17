@@ -242,7 +242,8 @@ class TestCookieAuth:
         app = _build_app()
         with _patch_pool(), _patch_user_by_id(_LOCAL_USER):
             client = TestClient(app)
-            resp = client.get("/unified", cookies={_COOKIE_NAME: token})
+            client.cookies.set(_COOKIE_NAME, token)
+            resp = client.get("/unified")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["user"] == "local-user"
 
@@ -250,7 +251,8 @@ class TestCookieAuth:
         app = _build_app()
         with _patch_pool():
             client = TestClient(app)
-            resp = client.get("/unified", cookies={_COOKIE_NAME: "garbage-token"})
+            client.cookies.set(_COOKIE_NAME, "garbage-token")
+            resp = client.get("/unified")
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_optional_auth_with_valid_cookie(self) -> None:
@@ -260,7 +262,8 @@ class TestCookieAuth:
         app = _build_app()
         with _patch_pool(), _patch_user_by_id(_LOCAL_USER):
             client = TestClient(app)
-            resp = client.get("/optional", cookies={_COOKIE_NAME: token})
+            client.cookies.set(_COOKIE_NAME, token)
+            resp = client.get("/optional")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["user"] == "local-user"
 
@@ -268,7 +271,8 @@ class TestCookieAuth:
         app = _build_app()
         with _patch_pool():
             client = TestClient(app)
-            resp = client.get("/optional", cookies={_COOKIE_NAME: "garbage-token"})
+            client.cookies.set(_COOKIE_NAME, "garbage-token")
+            resp = client.get("/optional")
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["user"] == "anonymous"
 
@@ -279,10 +283,10 @@ class TestCookieAuth:
         app = _build_app()
         with _patch_pool(), _patch_lookup(_ADMIN):
             client = TestClient(app)
+            client.cookies.set(_COOKIE_NAME, token)
             resp = client.get(
                 "/unified",
                 headers={"X-API-Key": "test-key"},
-                cookies={_COOKIE_NAME: token},
             )
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["user"] == "admin"
@@ -368,7 +372,8 @@ class TestWebLogin:
         app = FastAPI()
         app.include_router(auth_router)
         client = TestClient(app, follow_redirects=False)
-        resp = client.post("/auth/logout", cookies={_COOKIE_NAME: "some-token"})
+        client.cookies.set(_COOKIE_NAME, "some-token")
+        resp = client.post("/auth/logout")
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] in ("/", "/auth/login")
         # Cookie should be cleared (max-age=0 or deleted)
