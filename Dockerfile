@@ -33,8 +33,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python --no-cache --no-deps -e .
 
 # Build Tailwind CSS (standalone binary, no Node.js needed)
-ADD https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-linux-x64 /usr/local/bin/tailwindcss
-RUN chmod +x /usr/local/bin/tailwindcss
+ARG TAILWIND_VERSION=v3.4.17
+ARG TAILWIND_LINUX_X64_SHA256=7d24f7fa191d2193b78cd5f5a42a6093e14409521908529f42d80b11fde1f1d4
+ADD https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+RUN echo "${TAILWIND_LINUX_X64_SHA256}  /usr/local/bin/tailwindcss" | sha256sum -c - \
+    && chmod +x /usr/local/bin/tailwindcss
 COPY tailwind.config.js ./
 RUN tailwindcss -i src/bgpeek/static/css/input.css -o src/bgpeek/static/css/tailwind.css --minify
 

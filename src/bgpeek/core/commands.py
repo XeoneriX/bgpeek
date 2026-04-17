@@ -67,6 +67,13 @@ _COMMAND_TABLE: dict[tuple[str, QueryType, Family], str] = {
     ("huawei", QueryType.PING, "v6"): "ping ipv6 -c 5 {target}",
     ("huawei", QueryType.TRACEROUTE, "v4"): "tracert {target}",
     ("huawei", QueryType.TRACEROUTE, "v6"): "tracert ipv6 {target}",
+    # --- 6WIND VSR ---
+    ("sixwind_os", QueryType.BGP_ROUTE, "v4"): "show bgp ipv4 ip {target}",
+    ("sixwind_os", QueryType.BGP_ROUTE, "v6"): "show bgp ipv6 ip {target}",
+    ("sixwind_os", QueryType.PING, "v4"): "cmd ping {target} count 6",
+    ("sixwind_os", QueryType.PING, "v6"): "cmd ping {target} count 6",
+    ("sixwind_os", QueryType.TRACEROUTE, "v4"): "cmd traceroute {target}",
+    ("sixwind_os", QueryType.TRACEROUTE, "v6"): "cmd traceroute {target}",
 }
 
 # Per-platform source argument format for ping/traceroute. Same syntax for
@@ -79,6 +86,7 @@ _SOURCE_FORMAT: dict[str, str] = {
     "cisco_xr": " source {source}",
     "arista_eos": " source {source}",
     "huawei": " -a {source}",
+    "sixwind_os": " source {source}",
 }
 
 
@@ -118,7 +126,12 @@ def build_command(
     template = _COMMAND_TABLE.get((platform, query_type, family))
     if template is None:
         raise UnsupportedPlatformError(platform, query_type, family)
-    cmd = template.format(target=target)
+    target_arg = target
+    if platform == "sixwind_os" and query_type == QueryType.BGP_ROUTE and "/" in target:
+        # 6WIND `show bgp ... ip` expects a plain IP address, not CIDR.
+        target_arg = target.split("/", 1)[0]
+
+    cmd = template.format(target=target_arg)
     if source_ip and query_type in (QueryType.PING, QueryType.TRACEROUTE):
         fmt = _SOURCE_FORMAT.get(platform)
         if fmt:

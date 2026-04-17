@@ -170,6 +170,15 @@ def test_cisco_xe_uses_same_parser() -> None:
     assert routes[0].prefix == "8.8.8.0/24"
 
 
+# ---- 6WIND VSR ----
+
+
+def test_sixwind_os_uses_same_parser_as_cisco_style_output() -> None:
+    routes = parse_bgp_output(CISCO_SINGLE, platform="sixwind_os")
+    assert len(routes) == 1
+    assert routes[0].prefix == "8.8.8.0/24"
+
+
 # ---- Cisco XR ----
 
 

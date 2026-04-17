@@ -27,10 +27,12 @@ services:
       - -c
       - |
         uv sync --frozen --extra dev &&
+        tailwindcss -i /app/src/bgpeek/static/css/input.css -o /app/src/bgpeek/static/css/tailwind.css --minify &&
         uv run uvicorn bgpeek.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
+      - ./migrations:/app/migrations
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock
     environment:

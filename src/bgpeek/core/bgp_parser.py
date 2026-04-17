@@ -406,7 +406,12 @@ def _parse_huawei(text: str) -> list[BGPRoute]:
 
 _PLATFORM_PARSERS: dict[str, type[object] | None] = {}
 
+# Cisco-style output parsers
 _CISCO_PLATFORMS = frozenset({"cisco_ios", "cisco_xe", "cisco_xr", "arista_eos"})
+
+# 6WIND VSR parser mapping (currently Cisco-style output)
+_SIXWIND_PLATFORMS = frozenset({"sixwind_os"})
+
 _JUNOS_PLATFORMS = frozenset({"juniper_junos"})
 _HUAWEI_PLATFORMS = frozenset({"huawei"})
 
@@ -423,6 +428,8 @@ def parse_bgp_output(text: str, *, platform: str) -> list[BGPRoute]:
         if platform in _JUNOS_PLATFORMS:
             return _parse_junos(text)
         if platform in _CISCO_PLATFORMS:
+            return _parse_cisco(text)
+        if platform in _SIXWIND_PLATFORMS:
             return _parse_cisco(text)
         if platform in _HUAWEI_PLATFORMS:
             return _parse_huawei(text)

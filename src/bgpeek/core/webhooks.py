@@ -15,7 +15,12 @@ import structlog
 from bgpeek import __version__
 from bgpeek.db.pool import get_pool
 from bgpeek.db.webhooks import list_webhooks_for_event
-from bgpeek.models.webhook import Webhook, WebhookEvent, WebhookPayload
+from bgpeek.models.webhook import (
+    Webhook,
+    WebhookEvent,
+    WebhookPayload,
+    validate_webhook_delivery_target,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -35,6 +40,17 @@ def _sign_payload(body: bytes, secret: str) -> str:
 
 async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
     """POST the payload to a single webhook URL with one retry on failure."""
+    try:
+        validate_webhook_delivery_target(webhook.url)
+    except ValueError as exc:
+        log.warning(
+            "webhook_target_blocked",
+            webhook=webhook.name,
+            event=event.value,
+            reason=str(exc),
+        )
+        return
+
     headers: dict[str, str] = {
         "Content-Type": "application/json",
         "User-Agent": _USER_AGENT,
@@ -112,6 +128,12 @@ async def shutdown() -> None:
 
 async def send_test_payload(webhook: Webhook) -> bool:
     """Send a test payload to a webhook. Returns True on 2xx response."""
+    try:
+        validate_webhook_delivery_target(webhook.url)
+    except ValueError as exc:
+        log.warning("webhook_test_target_blocked", webhook=webhook.name, reason=str(exc))
+        return False
+
     payload = WebhookPayload(
         event=WebhookEvent.QUERY,
         timestamp=datetime.now(tz=UTC).isoformat(),
