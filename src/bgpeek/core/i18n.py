@@ -105,6 +105,16 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no_output": "No output — route not found or empty response",
         "network_not_in_table": "Network not in table",
         "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
+        # Admin panel
+        "admin": "Admin",
+        "looking_glass": "Looking Glass",
+        "admin_dashboard": "Dashboard",
+        "admin_devices": "Devices",
+        "admin_credentials": "SSH Credentials",
+        "admin_users": "Users",
+        "admin_community_labels": "Community Labels",
+        "admin_webhooks": "Webhooks",
+        "admin_manage": "Manage",
     },
     "ru": {
         "site_name": "bgpeek",

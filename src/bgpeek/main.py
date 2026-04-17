@@ -26,13 +26,16 @@ from bgpeek.api import devices as devices_api
 from bgpeek.api import query as query_api
 from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
-from bgpeek.core.auth import guest_user, optional_auth
+from bgpeek.core.auth import guest_user, optional_auth, require_role
 from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
 from bgpeek.core.oidc import setup_oidc
 from bgpeek.core.redis import close_redis, get_redis, init_redis
 from bgpeek.core.templates import templates
 from bgpeek.core.webhooks import shutdown as shutdown_webhooks
+from bgpeek.db import credentials as credential_crud
 from bgpeek.db import devices as device_crud
+from bgpeek.db import users as user_crud
+from bgpeek.db import webhooks as webhook_crud
 from bgpeek.db.pool import close_pool, get_pool, init_pool
 from bgpeek.db.results import list_results
 from bgpeek.models.user import User, UserRole
@@ -460,6 +463,41 @@ async def history(
         request=request,
         name="history.html",
         context=ctx,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin panel (SSR, admin role only)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_index(
+    request: Request,
+    user: User = Depends(require_role(UserRole.ADMIN)),  # noqa: B008
+) -> Response:
+    """Admin dashboard — shows aggregate counts for each managed resource."""
+    pool = get_pool()
+    devices = await device_crud.list_devices(pool)
+    users = await user_crud.list_users(pool)
+    credentials = await credential_crud.list_credentials(pool)
+    webhooks = await webhook_crud.list_webhooks(pool)
+    stats = {
+        "devices": len(devices),
+        "users": len(users),
+        "credentials": len(credentials),
+        "webhooks": len(webhooks),
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="admin/index.html",
+        context={
+            "version": __version__,
+            "user": user,
+            "stats": stats,
+            "t": request.state.t,
+            "lang": request.state.lang,
+        },
     )
 
 

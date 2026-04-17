@@ -1,0 +1,28 @@
+{% extends "admin/base.html" %}
+{% set active = "dashboard" %}
+
+{% block title %}bgpeek &middot; {{ t.admin_dashboard }}{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-xl font-semibold mb-6">{{ t.admin_dashboard }}</h1>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {% set cards = [
+        (t.admin_devices, stats.devices, '/admin/devices'),
+        (t.admin_users, stats.users, '/admin/users'),
+        (t.admin_credentials, stats.credentials, '/admin/credentials'),
+        (t.admin_webhooks, stats.webhooks, '/admin/webhooks'),
+    ] %}
+    {% for label, count, href in cards %}
+    <a href="{{ href }}"
+       class="block rounded-lg border border-slate-200 dark:border-slate-700
+              bg-white dark:bg-slate-800 p-5
+              hover:border-slate-400 dark:hover:border-slate-500
+              transition-colors">
+        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ label }}</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ count }}</div>
+        <div class="mt-2 text-xs text-slate-400 dark:text-slate-500">{{ t.admin_manage }} &rarr;</div>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}
