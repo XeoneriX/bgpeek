@@ -146,6 +146,10 @@ def test_admin_index_admin_renders_dashboard() -> None:
             "bgpeek.ui.admin.webhook_crud.list_webhooks",
             new=AsyncMock(return_value=[]),
         ),
+        patch(
+            "bgpeek.ui.admin.label_crud.list_labels",
+            new=AsyncMock(return_value=[1, 2, 3, 4]),
+        ),
         patch("bgpeek.ui.admin.get_pool", return_value=object()),
     ):
         client = TestClient(app)
@@ -159,9 +163,11 @@ def test_admin_index_admin_renders_dashboard() -> None:
     assert ">2<" in body  # users
     assert ">1<" in body  # credentials
     assert ">0<" in body  # webhooks
+    assert ">4<" in body  # community labels
     # Sidebar nav present
     assert "/admin/devices" in body
     assert "/admin/users" in body
+    assert "/admin/community-labels" in body
 
 
 def test_admin_link_shown_for_admin_in_main_navbar() -> None:

@@ -58,11 +58,13 @@ async def admin_index(
     users = await user_crud.list_users(pool)
     credentials = await credential_crud.list_credentials(pool)
     webhooks = await webhook_crud.list_webhooks(pool)
+    labels = await label_crud.list_labels(pool)
     stats = {
         "devices": len(devices),
         "users": len(users),
         "credentials": len(credentials),
         "webhooks": len(webhooks),
+        "community_labels": len(labels),
     }
     return templates.TemplateResponse(
         request=request,

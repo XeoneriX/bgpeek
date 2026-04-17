@@ -11,6 +11,7 @@
         (t.admin_devices, stats.devices, '/admin/devices'),
         (t.admin_users, stats.users, '/admin/users'),
         (t.admin_credentials, stats.credentials, '/admin/credentials'),
+        (t.admin_community_labels, stats.community_labels, '/admin/community-labels'),
         (t.admin_webhooks, stats.webhooks, '/admin/webhooks'),
     ] %}
     {% for label, count, href in cards %}
