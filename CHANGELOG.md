@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-04-17
+
+### Added
+
+- Dedicated `sixwind_os` BGP parser behavior for Cisco-like output quirks:
+  - ignores non-path preamble lines under `Paths:`
+  - parses `Last update:` into BGP route age
+
+### Changed
+
+- 6WIND BGP command templates switched to prefix form:
+  - `show bgp ipv4 prefix {target}`
+  - `show bgp ipv6 prefix {target}`
+- RPKI integration now targets Routinator validity API format directly:
+  - default API URL changed to `http://routinator:8323/api/v1/validity`
+  - request URL path uses `/{origin_asn}/{prefix}`
+  - response parsing uses `validated_route.validity.state`
+- Webhook model and signing flow tightened for safer secret handling defaults.
+- Development container hardening updates in Docker/dev compose.
+- Test and documentation fixtures sanitized to reserved documentation IP/ASN ranges.
+
+### Fixed
+
+- 6WIND BGP parsing no longer misclassifies peer advertisement preamble lines as route paths.
+- 6WIND age column population for parsed BGP routes.
+- RPKI status mapping for Routinator response variants (`valid`, `invalid`, `not-found`/equivalents).
+- Multiple command/parser/integration tests updated to match real 6WIND command behavior and routing output structure.
+
+## [1.1.0] - 2026-04-16
+
+### Added
+
+- Community label annotations from a DB-backed catalog, including optional color badges and row highlighting in BGP results.
+- BGP table enhancements: Age column support, active-route highlighting for Junos, and clearer best-path marker placement.
+- UI/UX refinements for result rendering, including improved light/dark theme behavior and raw output interaction updates.
+- Social preview assets for the repository.
+
+### Changed
+
+- Query command dispatch now auto-detects IPv4/IPv6 family from target input.
+- Input handling now strips and validates target values earlier in the UI/request flow.
+- Internationalization scope simplified: removed Russian locale while retaining i18n scaffolding.
+- Shared Jinja template wiring centralized in `core.templates`.
+- CI/release workflow dependencies updated (`actions/checkout@v6`, `astral-sh/setup-uv@v7`, `softprops/action-gh-release@v3`, and dependabot metadata tooling updates).
+- Dependency baseline updated (including `asyncpg`, `bandit`, `pre-commit`, and `prometheus-fastapi-instrumentator`).
+
+### Fixed
+
+- Junos BGP parser improvements:
+  - parse active path state correctly
+  - parse `Metric:` as MED
+  - strip trailing AS-path annotations (e.g. originator markers)
+- BGP output handling:
+  - strip leading license banners more robustly
+  - return explicit "Network not in table" UX state for empty route results
+- DNS target validation now rejects numeric shorthand forms that may be ambiguously resolved by `getaddrinfo`.
+- Query validation hardening for ping/traceroute targets: reject unspecified, broadcast, multicast, and link-local destinations.
+- Multiple BGP table presentation and copy-to-clipboard usability issues.
+- Ruff formatting cleanups required for CI consistency.
+
 ## [1.0.0] - 2026-04-13
 
 Initial public release.
@@ -91,4 +151,6 @@ Initial public release.
 - SSH credential management guide
 - REST API reference with curl examples
 
+[1.1.1]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.1
+[1.1.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.0
 [1.0.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.0.0

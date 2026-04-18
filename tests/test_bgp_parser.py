@@ -101,6 +101,46 @@ HUAWEI_MULTIPATH = """\
  MED: 10, localpref: 90
 """
 
+# Sanitized sample output for 6WIND with advertised-peers preamble.
+SIXWIND_WITH_ADVERTISED_PEERS = """\
+BGP routing table entry for 8.8.8.0/24, version 12345
+Paths: (4 available, best #3, l3vrf default)
+  Advertised to non peer-group peers:
+  2001:db8:100::1
+  64500 15169
+    2001:db8:100::1 (metric 10) from 2001:db8:100::1 (2001:db8:ffff::1)
+      Origin IGP, localpref 100, valid, internal
+      Last update: Tue Jan 07 12:34:56 2025
+  64501 15169
+    203.0.113.31 from 203.0.113.2 (203.0.113.2)
+      Origin IGP, metric 0, localpref 150, valid, external
+      Community: 64501:12345
+      Last update: Tue Jan 07 12:35:10 2025
+  64501 15169
+    203.0.113.31 from 203.0.113.1 (203.0.113.1)
+      Origin IGP, metric 0, localpref 150, valid, external, best
+      Community: 64501:12345
+      Last update: Tue Jan 07 12:35:10 2025
+  64502 15169 15169
+    192.0.2.134 from 192.0.2.134 (192.0.2.1)
+      Origin IGP, localpref 125, valid, external
+      Community: 64502:3
+      Last update: Tue Jan 07 12:36:00 2025
+"""
+
+SIXWIND_WITH_AS_SET = """\
+BGP routing table entry for 203.0.113.0/24, version 4242
+Paths: (2 available, best #1, l3vrf default)
+  {64501,64502} 15169
+    203.0.113.10 from 203.0.113.2 (203.0.113.2)
+      Origin IGP, metric 0, localpref 120, valid, external, best
+      Last update: Tue Jan 07 13:00:00 2025
+  64503 15169
+    203.0.113.11 from 203.0.113.3 (203.0.113.3)
+      Origin IGP, metric 10, localpref 110, valid, external
+      Last update: Tue Jan 07 13:01:00 2025
+"""
+
 
 # ---- JunOS ----
 
@@ -168,6 +208,39 @@ def test_cisco_xe_uses_same_parser() -> None:
     routes = parse_bgp_output(CISCO_SINGLE, platform="cisco_xe")
     assert len(routes) == 1
     assert routes[0].prefix == "8.8.8.0/24"
+
+
+# ---- 6WIND VSR ----
+
+
+def test_sixwind_os_uses_same_parser_as_cisco_style_output() -> None:
+    routes = parse_bgp_output(CISCO_SINGLE, platform="sixwind_os")
+    assert len(routes) == 1
+    assert routes[0].prefix == "8.8.8.0/24"
+
+
+def test_sixwind_os_ignores_advertised_peers_preamble() -> None:
+    routes = parse_bgp_output(SIXWIND_WITH_ADVERTISED_PEERS, platform="sixwind_os")
+    assert len(routes) == 4
+    assert routes[0].as_path == "64500 15169"
+    assert routes[0].next_hop == "2001:db8:100::1"
+    assert routes[0].age == "Tue Jan 07 12:34:56 2025"
+    assert routes[1].as_path == "64501 15169"
+    assert routes[1].age == "Tue Jan 07 12:35:10 2025"
+    assert routes[2].best is True
+    assert routes[2].age == "Tue Jan 07 12:35:10 2025"
+    assert routes[3].as_path == "64502 15169 15169"
+    assert routes[3].age == "Tue Jan 07 12:36:00 2025"
+
+
+def test_sixwind_os_accepts_as_set_path_tokens() -> None:
+    routes = parse_bgp_output(SIXWIND_WITH_AS_SET, platform="sixwind_os")
+    assert len(routes) == 2
+    assert routes[0].as_path == "{64501,64502} 15169"
+    assert routes[0].best is True
+    assert routes[0].age == "Tue Jan 07 13:00:00 2025"
+    assert routes[1].as_path == "64503 15169"
+    assert routes[1].age == "Tue Jan 07 13:01:00 2025"
 
 
 # ---- Cisco XR ----

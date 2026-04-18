@@ -59,6 +59,42 @@ def _check_blocked(addr_str: str) -> None:
             raise ValueError(f"webhook URL cannot target private/reserved network ({net})")
 
 
+def _validate_webhook_target(url: str, *, allow_unresolved_hostname: bool) -> None:
+    """Validate that a webhook URL does not resolve to private/reserved targets."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("webhook URL must use http or https")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("webhook URL must have a hostname")
+
+    # Handle literal IP hostnames first.
+    try:
+        ip_address(hostname)
+    except ValueError:
+        pass
+    else:
+        _check_blocked(hostname)
+        return
+
+    # Hostname: resolve all addresses and validate each.
+    try:
+        resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        if allow_unresolved_hostname:
+            return
+        raise ValueError(f"webhook URL hostname could not be resolved ({hostname})") from None
+
+    for info in resolved:
+        _check_blocked(str(info[4][0]))
+
+
+def validate_webhook_delivery_target(url: str) -> None:
+    """Runtime webhook target validation used right before outbound delivery."""
+    _validate_webhook_target(url, allow_unresolved_hostname=False)
+
+
 class WebhookCreate(WebhookBase):
     """Payload for creating a new webhook."""
 
@@ -67,25 +103,7 @@ class WebhookCreate(WebhookBase):
     @field_validator("url")
     @classmethod
     def validate_webhook_url(cls, v: str) -> str:
-        parsed = urlparse(v)
-        if parsed.scheme not in ("http", "https"):
-            raise ValueError("webhook URL must use http or https")
-        hostname = parsed.hostname
-        if not hostname:
-            raise ValueError("webhook URL must have a hostname")
-        # Check if hostname is a literal IP address
-        try:
-            _check_blocked(hostname)
-        except ValueError as exc:
-            if "cannot target" in str(exc):
-                raise
-            # hostname is not an IP literal — try DNS resolution
-            try:
-                resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-                for info in resolved:
-                    _check_blocked(str(info[4][0]))
-            except socket.gaierror:
-                pass  # DNS failure — allow now, will fail on delivery
+        _validate_webhook_target(v, allow_unresolved_hostname=True)
         return v
 
 

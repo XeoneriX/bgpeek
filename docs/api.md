@@ -436,7 +436,7 @@ curl -s http://localhost:8000/api/health
 ```
 
 ```json
-{"status": "ok", "version": "0.3.0"}
+{"status": "ok", "version": "1.1.1"}
 ```
 
 ### Deep Health Check
@@ -448,7 +448,7 @@ curl -s "http://localhost:8000/api/health?deep=true"
 ```json
 {
   "status": "ok",
-  "version": "0.3.0",
+  "version": "1.1.1",
   "database": "ok",
   "redis": "ok"
 }

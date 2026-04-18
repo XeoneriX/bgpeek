@@ -91,7 +91,7 @@ All settings use environment variables with the `BGPEEK_` prefix. Key settings:
 | `BGPEEK_REDIS_URL` | `redis://redis:6379/0` | Redis connection string |
 | `BGPEEK_CACHE_TTL` | `60` | Query cache TTL in seconds |
 | `BGPEEK_RATE_LIMIT_QUERY` | `30` | Queries per minute per IP |
-| `BGPEEK_RPKI_ENABLED` | `true` | Enable RPKI validation |
+| `BGPEEK_RPKI_ENABLED` | `false` | Enable RPKI validation |
 | `BGPEEK_DEFAULT_LANG` | `en` | Default UI language (`en`) |
 
 See [`.env.example`](.env.example) for the complete list with descriptions.

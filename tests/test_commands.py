@@ -33,6 +33,7 @@ def test_supported_platforms_present() -> None:
     assert "juniper_junos" in plats
     assert "huawei" in plats
     assert "arista_eos" in plats
+    assert "sixwind_os" in plats
 
 
 # --- Family-aware dispatch ----------------------------------------------------
@@ -74,6 +75,19 @@ def test_huawei_traceroute_v6_uses_ipv6_keyword() -> None:
     assert cmd.startswith("tracert ipv6 ")
 
 
+# ---- 6WIND VSR ----
+
+
+def test_sixwind_os_bgp_v4_command() -> None:
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "8.8.8.0/24")
+    assert cmd == "show bgp ipv4 prefix 8.8.8.0/24"
+
+
+def test_sixwind_os_bgp_v6_command() -> None:
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "2001:db8::/48")
+    assert cmd == "show bgp ipv6 prefix 2001:db8::/48"
+
+
 # --- Source-IP injection ------------------------------------------------------
 
 
@@ -101,6 +115,14 @@ def test_source_not_appended_for_bgp_route() -> None:
 def test_huawei_source_uses_dash_a() -> None:
     cmd = build_command("huawei", QueryType.PING, "8.8.8.8", source_ip="10.0.0.1")
     assert cmd.endswith(" -a 10.0.0.1")
+
+
+# ---- 6WIND VSR Source-IP Injection ----
+
+
+def test_sixwind_os_source_uses_source_keyword() -> None:
+    cmd = build_command("sixwind_os", QueryType.PING, "8.8.8.8", source_ip="10.0.0.1")
+    assert cmd == "cmd ping 8.8.8.8 count 6 source 10.0.0.1"
 
 
 # --- Errors -------------------------------------------------------------------

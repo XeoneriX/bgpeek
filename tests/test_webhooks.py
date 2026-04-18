@@ -206,6 +206,36 @@ async def test_dispatch_no_matching_webhooks() -> None:
         mock_client_cls.assert_not_called()
 
 
+async def test_dispatch_skips_blocked_webhook_target() -> None:
+    hook = Webhook(
+        id=1,
+        name="blocked-hook",
+        url="https://example.com/hook",
+        secret=None,
+        events=[WebhookEvent.QUERY],
+        enabled=True,
+        created_at=_NOW,
+        updated_at=_NOW,
+    )
+
+    with (
+        patch("bgpeek.core.webhooks.get_pool"),
+        patch("bgpeek.core.webhooks.list_webhooks_for_event", new_callable=AsyncMock) as mock_list,
+        patch(
+            "bgpeek.core.webhooks.validate_webhook_delivery_target",
+            side_effect=ValueError("blocked target"),
+        ),
+        patch("bgpeek.core.webhooks.httpx.AsyncClient") as mock_client_cls,
+    ):
+        mock_list.return_value = [hook]
+        await dispatch_webhook(WebhookEvent.QUERY, {"target": "1.1.1.1"})
+
+        import asyncio
+
+        await asyncio.sleep(0.1)
+        mock_client_cls.assert_not_called()
+
+
 async def test_dispatch_http_failure_logged_not_raised() -> None:
     hook = Webhook(
         id=1,
@@ -284,6 +314,30 @@ async def test_send_test_payload_failure() -> None:
 
         result = await send_test_payload(hook)
         assert result is False
+
+
+async def test_send_test_payload_blocked_target_returns_false() -> None:
+    hook = Webhook(
+        id=1,
+        name="test",
+        url="https://example.com/hook",
+        secret=None,
+        events=[WebhookEvent.QUERY],
+        enabled=True,
+        created_at=_NOW,
+        updated_at=_NOW,
+    )
+
+    with (
+        patch(
+            "bgpeek.core.webhooks.validate_webhook_delivery_target",
+            side_effect=ValueError("blocked target"),
+        ),
+        patch("bgpeek.core.webhooks.httpx.AsyncClient") as mock_client_cls,
+    ):
+        result = await send_test_payload(hook)
+        assert result is False
+        mock_client_cls.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

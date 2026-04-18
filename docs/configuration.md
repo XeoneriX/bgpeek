@@ -131,11 +131,30 @@ Rate limiting requires Redis. If Redis is unavailable, rate limiting is silently
 
 | Variable | Default | Description |
 |---|---|---|
-| `BGPEEK_RPKI_ENABLED` | `true` | Enable RPKI validation overlay on BGP routes |
-| `BGPEEK_RPKI_API_URL` | `https://rpki.cloudflare.com/api/v1/validity` | RPKI validation API endpoint |
+| `BGPEEK_RPKI_ENABLED` | `false` | Enable RPKI validation overlay on BGP routes |
+| `BGPEEK_RPKI_API_URL` | `http://routinator:8323/api/v1/validity` | Routinator RPKI validity API endpoint |
 | `BGPEEK_RPKI_TIMEOUT` | `5` | API request timeout in seconds |
 | `BGPEEK_RPKI_CACHE_TTL` | `3600` | Cache TTL for successful RPKI lookups (seconds) |
 | `BGPEEK_RPKI_ERROR_CACHE_TTL` | `60` | Cache TTL for RPKI API errors (seconds) |
+
+RPKI is disabled by default because bgpeek does not bundle a Routinator service.
+To enable it, run Routinator and point `BGPEEK_RPKI_API_URL` to its validity endpoint.
+
+Example:
+
+```bash
+docker run -d --name routinator \
+  -p 8323:8323 \
+  nlnetlabs/routinator:latest \
+  server --rtr 0.0.0.0:3323 --http 0.0.0.0:8323
+```
+
+Then set:
+
+```bash
+BGPEEK_RPKI_ENABLED=true
+BGPEEK_RPKI_API_URL=http://<routinator-host>:8323/api/v1/validity
+```
 
 ## Circuit Breaker
 
@@ -178,7 +197,7 @@ Pass `?deep=true` for a full connectivity check (PostgreSQL + Redis):
 ```json
 {
   "status": "ok",
-  "version": "0.1.0",
+  "version": "1.1.1",
   "database": "ok",
   "redis": "ok"
 }
