@@ -128,6 +128,19 @@ Paths: (4 available, best #3, l3vrf default)
       Last update: Tue Jan 07 12:36:00 2025
 """
 
+SIXWIND_WITH_AS_SET = """\
+BGP routing table entry for 203.0.113.0/24, version 4242
+Paths: (2 available, best #1, l3vrf default)
+  {64501,64502} 15169
+    203.0.113.10 from 203.0.113.2 (203.0.113.2)
+      Origin IGP, metric 0, localpref 120, valid, external, best
+      Last update: Tue Jan 07 13:00:00 2025
+  64503 15169
+    203.0.113.11 from 203.0.113.3 (203.0.113.3)
+      Origin IGP, metric 10, localpref 110, valid, external
+      Last update: Tue Jan 07 13:01:00 2025
+"""
+
 
 # ---- JunOS ----
 
@@ -218,6 +231,16 @@ def test_sixwind_os_ignores_advertised_peers_preamble() -> None:
     assert routes[2].age == "Tue Jan 07 12:35:10 2025"
     assert routes[3].as_path == "64502 15169 15169"
     assert routes[3].age == "Tue Jan 07 12:36:00 2025"
+
+
+def test_sixwind_os_accepts_as_set_path_tokens() -> None:
+    routes = parse_bgp_output(SIXWIND_WITH_AS_SET, platform="sixwind_os")
+    assert len(routes) == 2
+    assert routes[0].as_path == "{64501,64502} 15169"
+    assert routes[0].best is True
+    assert routes[0].age == "Tue Jan 07 13:00:00 2025"
+    assert routes[1].as_path == "64503 15169"
+    assert routes[1].age == "Tue Jan 07 13:01:00 2025"
 
 
 # ---- Cisco XR ----

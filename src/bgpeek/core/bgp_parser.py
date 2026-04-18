@@ -311,8 +311,13 @@ def _parse_cisco(text: str) -> list[BGPRoute]:
 # 6WIND VSR (Cisco-like with platform-specific quirks)
 # ---------------------------------------------------------------------------
 
-_SIXWIND_PATH_START_RE = re.compile(r"^\s{2,}\d+(?:\s+\d+)*(?:\s*,.*)?\s*$")
-_SIXWIND_ASPATH_PREFIX_RE = re.compile(r"^(\d+(?:\s+\d+)*)")
+_SIXWIND_ASPATH_ATOM_RE = r"(?:\d+|\{\s*\d+(?:\s*,\s*\d+)+\s*\})"
+_SIXWIND_PATH_START_RE = re.compile(
+    rf"^\s{{2,}}{_SIXWIND_ASPATH_ATOM_RE}(?:\s+{_SIXWIND_ASPATH_ATOM_RE})*(?:\s*,.*)?\s*$"
+)
+_SIXWIND_ASPATH_PREFIX_RE = re.compile(
+    rf"^({_SIXWIND_ASPATH_ATOM_RE}(?:\s+{_SIXWIND_ASPATH_ATOM_RE})*)"
+)
 _SIXWIND_NEXTHOP_RE = re.compile(
     r"^\s+([\d.]+|[\da-fA-F:]+)(?:\s+\([^)]*\))?\s+from\s+",
     re.MULTILINE,

@@ -40,13 +40,13 @@ def _parse_routinator_state(payload: object) -> RpkiStatus:
         return RpkiStatus.UNKNOWN
 
     raw_state = str(validity.get("state", "")).strip().lower()
-    token = raw_state.replace("_", "").replace("-", "").replace(" ", "")
+    normalized_state = raw_state.replace("_", "").replace("-", "").replace(" ", "")
 
-    if token == "valid":
+    if normalized_state == "valid":
         return RpkiStatus.VALID
-    if token == "invalid":
+    if normalized_state == "invalid":
         return RpkiStatus.INVALID
-    if token == "notfound":
+    if normalized_state == "notfound":
         return RpkiStatus.NOT_FOUND
     return RpkiStatus.UNKNOWN
 
