@@ -61,7 +61,12 @@ def _make_route(
 async def test_validate_rpki_valid() -> None:
     mock_response = httpx.Response(
         200,
-        json={"prefix": "8.8.8.0/24", "asn": 15169, "state": "Valid"},
+        json={
+            "validated_route": {
+                "route": {"origin_asn": "AS15169", "prefix": "8.8.8.0/24"},
+                "validity": {"state": "valid"},
+            }
+        },
         request=httpx.Request("GET", "https://example.com"),
     )
     redis_mock = _mock_redis_empty()
@@ -83,7 +88,12 @@ async def test_validate_rpki_valid() -> None:
 async def test_validate_rpki_invalid() -> None:
     mock_response = httpx.Response(
         200,
-        json={"prefix": "1.2.3.0/24", "asn": 99999, "state": "Invalid"},
+        json={
+            "validated_route": {
+                "route": {"origin_asn": "AS99999", "prefix": "1.2.3.0/24"},
+                "validity": {"state": "invalid"},
+            }
+        },
         request=httpx.Request("GET", "https://example.com"),
     )
     redis_mock = _mock_redis_empty()
@@ -105,7 +115,12 @@ async def test_validate_rpki_invalid() -> None:
 async def test_validate_rpki_not_found() -> None:
     mock_response = httpx.Response(
         200,
-        json={"prefix": "10.0.0.0/8", "asn": 64496, "state": "NotFound"},
+        json={
+            "validated_route": {
+                "route": {"origin_asn": "AS64496", "prefix": "10.0.0.0/8"},
+                "validity": {"state": "NotFound"},
+            }
+        },
         request=httpx.Request("GET", "https://example.com"),
     )
     redis_mock = _mock_redis_empty()

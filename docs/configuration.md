@@ -132,7 +132,7 @@ Rate limiting requires Redis. If Redis is unavailable, rate limiting is silently
 | Variable | Default | Description |
 |---|---|---|
 | `BGPEEK_RPKI_ENABLED` | `true` | Enable RPKI validation overlay on BGP routes |
-| `BGPEEK_RPKI_API_URL` | `https://rpki.cloudflare.com/api/v1/validity` | RPKI validation API endpoint |
+| `BGPEEK_RPKI_API_URL` | `http://routinator:8323/api/v1/validity` | Routinator RPKI validity API endpoint |
 | `BGPEEK_RPKI_TIMEOUT` | `5` | API request timeout in seconds |
 | `BGPEEK_RPKI_CACHE_TTL` | `3600` | Cache TTL for successful RPKI lookups (seconds) |
 | `BGPEEK_RPKI_ERROR_CACHE_TTL` | `60` | Cache TTL for RPKI API errors (seconds) |

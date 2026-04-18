@@ -308,6 +308,135 @@ def _parse_cisco(text: str) -> list[BGPRoute]:
 
 
 # ---------------------------------------------------------------------------
+# 6WIND VSR (Cisco-like with platform-specific quirks)
+# ---------------------------------------------------------------------------
+
+_SIXWIND_PATH_START_RE = re.compile(r"^\s{2,}\d+(?:\s+\d+)*(?:\s*,.*)?\s*$")
+_SIXWIND_ASPATH_PREFIX_RE = re.compile(r"^(\d+(?:\s+\d+)*)")
+_SIXWIND_NEXTHOP_RE = re.compile(
+    r"^\s+([\d.]+|[\da-fA-F:]+)(?:\s+\([^)]*\))?\s+from\s+",
+    re.MULTILINE,
+)
+_SIXWIND_LAST_UPDATE_RE = re.compile(r"Last update:\s+(.+)$", re.MULTILINE)
+
+
+def _parse_sixwind(text: str) -> list[BGPRoute]:
+    """Parse 6WIND BGP output.
+
+    Output is Cisco-like but may include preamble lines under "Paths:" such as
+    "Advertised to non peer-group peers:" and peer IP lines that must not be
+    interpreted as path blocks.
+    """
+    routes: list[BGPRoute] = []
+    entries = re.split(r"(?=BGP routing table entry for)", text)
+
+    for entry in entries:
+        entry = entry.strip()
+        prefix_m = _CISCO_ENTRY_RE.search(entry)
+        if not prefix_m:
+            continue
+
+        prefix = prefix_m.group(1)
+        lines = entry.splitlines()
+
+        paths_idx = -1
+        for i, ln in enumerate(lines):
+            if re.search(r"Paths:", ln):
+                paths_idx = i
+                break
+
+        if paths_idx < 0:
+            continue
+
+        path_blocks: list[list[str]] = []
+        current_block: list[str] = []
+
+        for ln in lines[paths_idx + 1 :]:
+            stripped = ln.strip()
+            if not stripped:
+                continue
+
+            is_aspath_line = bool(
+                _SIXWIND_PATH_START_RE.match(ln) or re.match(r"^\s{2,}Local\s*$", ln)
+            )
+            if is_aspath_line:
+                if current_block:
+                    path_blocks.append(current_block)
+                current_block = [ln]
+            else:
+                # Ignore non-path preamble under "Paths:" until first AS-path line.
+                if current_block:
+                    current_block.append(ln)
+
+        if current_block:
+            path_blocks.append(current_block)
+
+        for block in path_blocks:
+            block_text = "\n".join(block)
+            nh: str | None = None
+            aspath: str | None = None
+            origin: str | None = None
+            med: int | None = None
+            lp: int | None = None
+            age: str | None = None
+            comms: list[str] = []
+            best = False
+
+            first_stripped = block[0].strip()
+            aspath_prefix_m = _SIXWIND_ASPATH_PREFIX_RE.match(first_stripped)
+            if aspath_prefix_m:
+                aspath = " ".join(aspath_prefix_m.group(1).split())
+            elif first_stripped == "Local":
+                aspath = ""
+
+            nh_m = _SIXWIND_NEXTHOP_RE.search(block_text)
+            if nh_m:
+                nh = nh_m.group(1)
+
+            origin_m = _CISCO_ORIGIN_RE.search(block_text)
+            if origin_m:
+                raw_origin = origin_m.group(1)
+                origin = {"igp": "IGP", "egp": "EGP", "incomplete": "Incomplete"}.get(
+                    raw_origin.lower(), raw_origin
+                )
+
+            med_m = _CISCO_METRIC_RE.search(block_text)
+            if med_m:
+                med = int(med_m.group(1))
+
+            lp_m = _CISCO_LOCALPREF_RE.search(block_text)
+            if lp_m:
+                lp = int(lp_m.group(1))
+
+            age_m = _SIXWIND_LAST_UPDATE_RE.search(block_text)
+            if age_m:
+                age = age_m.group(1).strip()
+
+            comm_m = _CISCO_COMMUNITY_RE.search(block_text)
+            if comm_m:
+                comms = comm_m.group(1).strip().split()
+
+            if _CISCO_BEST_RE.search(block_text):
+                best = True
+
+            routes.append(
+                BGPRoute(
+                    prefix=prefix,
+                    next_hop=nh,
+                    as_path=aspath,
+                    origin=origin,
+                    med=med,
+                    local_pref=lp,
+                    age=age,
+                    communities=comms,
+                    best=best,
+                )
+            )
+
+    return routes
+
+
+# ---------------------------------------------------------------------------
 # Huawei VRP
 # ---------------------------------------------------------------------------
 
@@ -430,7 +559,7 @@ def parse_bgp_output(text: str, *, platform: str) -> list[BGPRoute]:
         if platform in _CISCO_PLATFORMS:
             return _parse_cisco(text)
         if platform in _SIXWIND_PLATFORMS:
-            return _parse_cisco(text)
+            return _parse_sixwind(text)
         if platform in _HUAWEI_PLATFORMS:
             return _parse_huawei(text)
 

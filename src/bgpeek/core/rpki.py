@@ -1,4 +1,4 @@
-"""RPKI validation for BGP routes via Cloudflare's RPKI API."""
+"""RPKI validation for BGP routes via Routinator's validity API."""
 
 from __future__ import annotations
 
@@ -24,6 +24,31 @@ class RpkiStatus(StrEnum):
     INVALID = "invalid"
     NOT_FOUND = "not_found"
     UNKNOWN = "unknown"
+
+
+def _parse_routinator_state(payload: object) -> RpkiStatus:
+    """Parse Routinator validity response payload into internal status enum."""
+    if not isinstance(payload, dict):
+        return RpkiStatus.UNKNOWN
+
+    validated_route = payload.get("validated_route")
+    if not isinstance(validated_route, dict):
+        return RpkiStatus.UNKNOWN
+
+    validity = validated_route.get("validity")
+    if not isinstance(validity, dict):
+        return RpkiStatus.UNKNOWN
+
+    raw_state = str(validity.get("state", "")).strip().lower()
+    token = raw_state.replace("_", "").replace("-", "").replace(" ", "")
+
+    if token == "valid":
+        return RpkiStatus.VALID
+    if token == "invalid":
+        return RpkiStatus.INVALID
+    if token == "notfound":
+        return RpkiStatus.NOT_FOUND
+    return RpkiStatus.UNKNOWN
 
 
 def _extract_origin_asn(as_path: str) -> int | None:
@@ -80,14 +105,14 @@ async def _set_cached_status(
 
 
 async def validate_rpki(prefix: str, origin_asn: int) -> RpkiStatus:
-    """Check RPKI validity for a prefix+origin pair via Cloudflare API."""
+    """Check RPKI validity for a prefix+origin pair via Routinator API."""
     # Check cache first
     cached = await _get_cached_status(prefix, origin_asn)
     if cached is not None:
         log.debug("rpki_cache_hit", prefix=prefix, asn=origin_asn, status=cached)
         return cached
 
-    url = f"{settings.rpki_api_url}/AS{origin_asn}/{prefix}"
+    url = f"{settings.rpki_api_url}/{origin_asn}/{prefix}"
     try:
         async with httpx.AsyncClient(timeout=settings.rpki_timeout) as client:
             resp = await client.get(url)
@@ -99,16 +124,7 @@ async def validate_rpki(prefix: str, origin_asn: int) -> RpkiStatus:
         await _set_cached_status(prefix, origin_asn, status, ttl=settings.rpki_error_cache_ttl)
         return status
 
-    # Cloudflare response: {"prefix": ..., "asn": ..., "state": "Valid"/"Invalid"/"NotFound"}
-    raw_state = data.get("state", "").lower()
-    if raw_state == "valid":
-        status = RpkiStatus.VALID
-    elif raw_state == "invalid":
-        status = RpkiStatus.INVALID
-    elif raw_state in ("notfound", "not found"):
-        status = RpkiStatus.NOT_FOUND
-    else:
-        status = RpkiStatus.UNKNOWN
+    status = _parse_routinator_state(data)
 
     await _set_cached_status(prefix, origin_asn, status)
     log.debug("rpki_validated", prefix=prefix, asn=origin_asn, status=status)

@@ -177,7 +177,7 @@ class Settings(BaseSettings):
 
     # --- RPKI ---
     rpki_enabled: bool = True
-    rpki_api_url: str = "https://rpki.cloudflare.com/api/v1/validity"
+    rpki_api_url: str = "http://routinator:8323/api/v1/validity"
     rpki_timeout: int = 5  # seconds
     rpki_cache_ttl: int = 3600  # 1 hour
     rpki_error_cache_ttl: int = Field(

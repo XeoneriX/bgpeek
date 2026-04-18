@@ -80,12 +80,12 @@ def test_huawei_traceroute_v6_uses_ipv6_keyword() -> None:
 
 def test_sixwind_os_bgp_v4_command() -> None:
     cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "8.8.8.0/24")
-    assert cmd == "show bgp ipv4 ip 8.8.8.0"
+    assert cmd == "show bgp ipv4 prefix 8.8.8.0/24"
 
 
 def test_sixwind_os_bgp_v6_command() -> None:
     cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "2001:db8::/48")
-    assert cmd == "show bgp ipv6 ip 2001:db8::"
+    assert cmd == "show bgp ipv6 prefix 2001:db8::/48"
 
 
 # --- Source-IP injection ------------------------------------------------------
