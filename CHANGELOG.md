@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-18
+
+### Added
+
+- First-class branding configuration surface for UI identity and theme behavior:
+  - `BGPEEK_PRIMARY_ASN` (digits-only) for ASN-driven branding defaults
+  - `BGPEEK_BRAND_PAGE_TITLES` for per-page title suffix overrides
+  - `BGPEEK_BRAND_PEERINGDB_LINK_ENABLED` toggle for header PeeringDB link
+  - `BGPEEK_BRAND_FOOTER` HTML footer suffix content
+  - `BGPEEK_BRAND_CUSTOM_CSS` for custom CSS injection
+- Derived branding defaults:
+  - site name now defaults to `AS<PRIMARY_ASN> bgpeek` when not explicitly set
+  - PeeringDB URL is generated from the configured primary ASN
+- PeeringDB header integration:
+  - top-right icon link added beside theme/user controls
+  - official PeeringDB logo asset included as `/static/peeringdb.png`
+- Dedicated top-bar user menu component (`partials/user_menu.html`) with:
+  - user icon trigger
+  - current user/guest label in button
+  - auth actions (`login` / `logout`)
+  - conditional `Account settings` visibility for authenticated users
+- Login UX enhancement:
+  - `Continue as guest` button on `/auth/login` when `access_mode` is `guest` or `open`
+- Russian locale support restored with English-fallback merge behavior in i18n.
+
+### Changed
+
+- Footer branding behavior reworked:
+  - `bgpeek` + version is always visible and links to source
+  - optional custom footer segment appears only when configured
+  - legacy configurable source label/URL behavior removed
+- Page title branding model changed from single tagline to per-page suffix mapping.
+- Header navigation refactored to use shared, consistent user menu across:
+  - index
+  - history
+  - shared result page
+- Shared result route now passes `user` into template context for consistent header/auth rendering.
+- Theme preference key and branding globals centralized in `core.templates`.
+
+### Fixed
+
+- Startup title fallback bug when `BGPEEK_BRAND_SITE_NAME` is empty.
+- Validation hardening for `BGPEEK_PRIMARY_ASN`:
+  - now requires digits only (rejects `AS` prefix input).
+- User menu viewport overflow:
+  - dropdown width constrained and clamped to viewport to prevent horizontal page shift.
+- Guest label rendering in user button:
+  - now visible consistently (no hidden breakpoint dependency).
+- Translation consistency:
+  - guest/account settings labels and guest-continue flow now use i18n keys.
+
 ## [1.1.1] - 2026-04-17
 
 ### Added
@@ -151,6 +202,7 @@ Initial public release.
 - SSH credential management guide
 - REST API reference with curl examples
 
+[1.2.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.2.0
 [1.1.1]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.1
 [1.1.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.0
 [1.0.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.0.0
