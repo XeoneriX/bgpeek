@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}bgpeek &middot; {{ t.sign_in | lower }}{% endblock %}
+{% block title %}{{ brand.site_name }} &middot; {{ brand.page_titles.get("login", t.sign_in | lower) }}{% endblock %}
 
 {% block body %}
 <div class="flex-1 flex items-center justify-center p-4">
@@ -8,8 +8,8 @@
         <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-8">
             {# Logo / app name #}
             <div class="flex items-center justify-center gap-2 mb-8">
-                <img src="/static/favicon.svg" alt="" class="w-8 h-8" aria-hidden="true">
-                <span class="text-xl font-bold tracking-tight">bgpeek</span>
+                <img src="{{ brand.logo_path }}" alt="" class="w-8 h-8" aria-hidden="true">
+                <span class="text-xl font-bold tracking-tight">{{ brand.site_name }}</span>
             </div>
 
             {% if error %}

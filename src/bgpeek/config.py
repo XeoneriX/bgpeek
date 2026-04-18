@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     # --- i18n ---
     default_lang: str = "en"
 
+    # --- ASN ---
+    primary_asn: int | str = Field(
+        default="65000",
+        description="Primary ASN (digits only) used for default branding and PeeringDB link generation.",
+    )
+
     # --- Metrics ---
     metrics_enabled: bool = Field(default=True, description="Expose /metrics Prometheus endpoint")
 
@@ -187,10 +193,57 @@ class Settings(BaseSettings):
     # --- LG links ---
     lg_links: str = ""  # JSON: [{"name": "RETN", "url": "https://lg.retn.net"}, ...]
 
+    # --- Branding ---
+    brand_site_name: str = Field(
+        default="",
+        description="UI brand name shown in page titles and header. If empty, defaults to 'AS<primary_asn> bgpeek'.",
+    )
+    brand_page_titles: dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional per-page title suffix overrides (text after '·') as JSON object. Supported keys: index, login, history, result_page.",
+    )
+    brand_site_description: str = Field(
+        default="Open-source looking glass for ISPs and IX operators",
+        description="Application description used in API metadata.",
+    )
+    brand_logo_path: str = Field(
+        default="/static/favicon.svg",
+        description="Path or URL to the brand logo used in headers/login screens.",
+    )
+    brand_favicon_path: str = Field(
+        default="/static/favicon.svg",
+        description="Path or URL to favicon file referenced by HTML pages.",
+    )
+    brand_theme_storage_key: str = Field(
+        default="bgpeek-theme",
+        description="localStorage key used to persist dark/light mode preference.",
+    )
+    brand_footer: str = Field(
+        default="",
+        description="Optional footer suffix rendered as HTML after the '·' separator. The 'bgpeek v<version>' prefix is always shown.",
+    )
+    brand_peeringdb_link_enabled: bool = Field(
+        default=True,
+        description="Show a PeeringDB link in the top-right header using primary_asn.",
+    )
+    brand_custom_css: str = Field(
+        default="",
+        description="Optional CSS string appended to base template style block.",
+    )
+
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
     static_dir: Path = Path(__file__).parent / "static"
     templates_dir: Path = Path(__file__).parent / "templates"
+
+    @field_validator("primary_asn")
+    @classmethod
+    def validate_primary_asn(cls: "Settings", value: int | str) -> str:
+        """Validate primary_asn as digits-only string."""
+        normalized = str(value).strip()
+        if not normalized.isdigit():
+            raise ValueError("primary_asn must contain digits only (for example: 152183)")
+        return normalized
 
 
 settings = Settings()

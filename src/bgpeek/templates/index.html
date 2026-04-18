@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}bgpeek &middot; looking glass{% endblock %}
+{% block title %}{{ brand.site_name }} &middot; {{ brand.page_titles.get("index", "looking glass") }}{% endblock %}
 
 {% block body %}
 {# ── Header ─────────────────────────────────────────────────────── #}
 <header class="h-14 flex-shrink-0 flex items-center justify-between px-4 sm:px-6
                bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
     <a href="/" class="flex items-center gap-2">
-        <img src="/static/favicon.svg" alt="" class="w-7 h-7" aria-hidden="true">
-        <span class="text-lg font-bold tracking-tight">bgpeek</span>
+        <img src="{{ brand.logo_path }}" alt="" class="w-7 h-7" aria-hidden="true">
+        <span class="text-lg font-bold tracking-tight">{{ brand.site_name }}</span>
     </a>
     <div class="flex items-center gap-3">
         <a href="/history" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.history }}</a>
@@ -23,6 +23,15 @@
         </form>
         {% else %}
         <a href="/auth/login" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.login }}</a>
+        {% endif %}
+        {% if brand.peeringdb_link_enabled %}
+        <a href="{{ brand.peeringdb_url }}" target="_blank" rel="noopener noreferrer"
+           aria-label="Open PeeringDB"
+           title="PeeringDB"
+           class="p-1.5 rounded-md text-slate-500 dark:text-slate-400
+                  hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <img src="/static/peeringdb.png" alt="" class="w-5 h-5" aria-hidden="true">
+        </a>
         {% endif %}
         <button type="button"
                 onclick="bgpeekToggleTheme()"
@@ -175,10 +184,11 @@
         </div>
 
         <div class="px-5 py-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700">
-            bgpeek v{{ version }}
-            <span class="mx-1">&middot;</span>
             <a href="https://github.com/xeonerix/bgpeek"
-               class="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">Source</a>
+               class="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">bgpeek</a> v{{ version }}
+            {% if brand.footer %}
+            <span class="mx-1">&middot;</span>{{ brand.footer | safe }}
+            {% endif %}
         </div>
     </aside>
 

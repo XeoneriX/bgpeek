@@ -1,16 +1,17 @@
 <!DOCTYPE html>
-<html lang="{{ lang | default('en') }}">
+<html lang="{{ lang | default('en') }}" data-theme-storage-key="{{ brand.theme_storage_key }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}bgpeek{% endblock %}</title>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title>{% block title %}{{ brand.site_name }}{% endblock %}</title>
+    <link rel="icon" href="{{ brand.favicon_path }}">
     <link rel="stylesheet" href="/static/css/tailwind.css">
     <script src="/static/js/htmx.min.js"></script>
     <script>
       /* Apply dark mode before paint to prevent flash. */
       (function () {
-        var s = localStorage.getItem("bgpeek-theme");
+        var k = document.documentElement.getAttribute("data-theme-storage-key") || "bgpeek-theme";
+        var s = localStorage.getItem(k);
         if (s === "dark" || (!s && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
           document.documentElement.classList.add("dark");
         }
@@ -26,6 +27,9 @@
       /* Community label colors: light value by default, dark under .dark */
       .cl { color: var(--cl); }
       .dark .cl { color: var(--cd); }
+      {% if brand.custom_css %}
+      {{ brand.custom_css | safe }}
+      {% endif %}
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
