@@ -51,6 +51,7 @@ async def login_page(request: Request) -> HTMLResponse:
             "t": request.state.t,
             "lang": request.state.lang,
             "oidc_enabled": settings.oidc_enabled,
+            "allow_guest_continue": settings.access_mode in ("guest", "open"),
         },
     )
 
@@ -87,6 +88,7 @@ async def login_submit(
                 "t": request.state.t,
                 "lang": request.state.lang,
                 "oidc_enabled": settings.oidc_enabled,
+                "allow_guest_continue": settings.access_mode in ("guest", "open"),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )

@@ -361,6 +361,7 @@ async def result_page(
         context={
             "stored": stored,
             "result_id": result_id,
+            "user": user,
             "t": request.state.t,
             "lang": request.state.lang,
         },

@@ -28,6 +28,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "copied": "Copied!",
         "login": "Login",
         "logout": "Logout",
+        "guest": "Guest",
+        "continue_as_guest": "Continue as guest",
+        "account_settings": "Account settings",
         "sign_in": "Sign in",
         "username": "Username",
         "password": "Password",
@@ -103,6 +106,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "network_not_in_table": "Network not in table",
         "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
     },
+    "ru": {
+        "site_name": "bgpeek",
+        "network_query": "Сетевой запрос",
+        "location": "Локация",
+        "query_type": "Тип запроса",
+        "bgp_route": "BGP маршрут",
+        "ping": "Ping",
+        "traceroute": "Traceroute",
+        "target": "Цель",
+        "region_filter": "Регион",
+        "region_all": "Все",
+        "run_query": "Выполнить запрос",
+        "abort": "Отменить",
+        "empty_state": "Запустите запрос, чтобы увидеть результаты",
+        "login": "Войти",
+        "logout": "Выйти",
+        "guest": "Гость",
+        "continue_as_guest": "Продолжить как гость",
+        "account_settings": "Настройки аккаунта",
+        "sign_in": "Вход",
+        "username": "Имя пользователя",
+        "password": "Пароль",
+        "history": "История",
+        "query_history": "История запросов",
+        "recent_queries": "Недавние запросы",
+        "time": "Время",
+        "device": "Устройство",
+        "runtime": "Время выполнения",
+        "status": "Статус",
+        "actions": "Действия",
+        "view": "Открыть",
+        "load_more": "Показать еще",
+        "no_results": "Запросов пока нет",
+        "shared_result": "Общий результат",
+        "created": "Создано",
+        "expires": "Истекает",
+        "by": "от",
+        "result_not_found": "Результат не найден",
+        "result_expired": "Этот результат истек или не существует.",
+        "api_docs": "API",
+        "invalid_credentials": "Неверное имя пользователя или пароль",
+        "sign_in_sso": "Войти через SSO",
+        "or": "или",
+        "new_query": "Новый запрос",
+        "run_new_query": "Выполнить новый запрос",
+        "recent_queries_7d": "Недавние запросы за последние 7 дней",
+        "run_query_to_appear": "Выполните запрос, и он появится здесь.",
+        "select_all": "Выбрать все",
+        "clear_selection": "Очистить",
+        "devices_queried": "устройств опрошено",
+        "total_time": "Общее время",
+        "compare": "Сравнить",
+        "diff": "Разница",
+        "side_by_side": "Рядом",
+        "stacked": "Стопкой",
+        "n_selected": "выбрано",
+        "resolved_to": "разрешено в",
+        "other_looking_glasses": "Другие Looking Glass",
+    },
 }
 
 DEFAULT_LANG = "en"
@@ -110,8 +172,12 @@ SUPPORTED_LANGS = frozenset(TRANSLATIONS.keys())
 
 
 def get_translations(lang: str) -> dict[str, str]:
-    """Return translations for the given language, falling back to English."""
-    return TRANSLATIONS.get(lang, TRANSLATIONS[DEFAULT_LANG])
+    """Return translations for the given language, with English fallback keys."""
+    default = TRANSLATIONS[DEFAULT_LANG]
+    selected = TRANSLATIONS.get(lang)
+    if selected is None or lang == DEFAULT_LANG:
+        return default
+    return {**default, **selected}
 
 
 def detect_language(
