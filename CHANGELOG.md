@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-18
+
+### Added
+
+- First-class branding configuration for UI identity and behavior:
+  - `BGPEEK_PRIMARY_ASN` (digits-only)
+  - `BGPEEK_BRAND_PAGE_TITLES` for per-page title suffix overrides
+  - `BGPEEK_BRAND_FOOTER` for optional footer HTML
+  - `BGPEEK_BRAND_CUSTOM_CSS` for custom CSS injection
+  - `BGPEEK_PEERINGDB_LINK_ENABLED` to toggle the PeeringDB header icon
+- ASN-driven defaults for branding:
+  - site name defaults to `AS<PRIMARY_ASN> bgpeek` when unset
+  - PeeringDB URL is derived from `BGPEEK_PRIMARY_ASN`
+- PeeringDB header icon link with bundled asset at `/static/peeringdb.png`.
+- Unified top-bar user menu (login/logout, guest/user label, account settings visibility).
+- `Continue as guest` action on `/auth/login` when `access_mode` is `guest` or `open`.
+- Russian locale translations added with English-fallback merge behavior in i18n.
+
+### Changed
+
+- Footer branding behavior reworked:
+  - `bgpeek` + version is always visible and links to source
+  - optional custom footer segment appears only when configured
+  - legacy configurable source label/URL behavior removed
+- Page title branding moved from a single tagline to per-page suffix mapping.
+- Header/navigation behavior is consistent across index, history, and shared result pages.
+- Configuration docs and examples were updated for the branding and links feature set.
+- Configuration docs/examples now explicitly document session/output controls:
+  - `BGPEEK_ACCESS_MODE`
+  - `BGPEEK_PUBLIC_OUTPUT_LEVEL`
+
 ## [1.1.1] - 2026-04-17
 
 ### Added
@@ -151,6 +182,7 @@ Initial public release.
 - SSH credential management guide
 - REST API reference with curl examples
 
+[1.2.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.2.0
 [1.1.1]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.1
 [1.1.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.1.0
 [1.0.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.0.0

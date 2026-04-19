@@ -2,7 +2,8 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "bgpeek-theme";
+  var STORAGE_KEY =
+    document.documentElement.getAttribute("data-theme-storage-key") || "bgpeek-theme";
 
   function applyTheme(dark) {
     document.documentElement.classList.toggle("dark", dark);

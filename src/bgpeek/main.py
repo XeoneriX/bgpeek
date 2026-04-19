@@ -295,8 +295,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(
-    title="bgpeek",
-    description="Open-source looking glass for ISPs and IX operators",
+    title=settings.brand_site_name.strip() or f"AS{settings.primary_asn} bgpeek",
+    description=settings.brand_site_description,
     version=__version__,
     lifespan=lifespan,
     docs_url="/api/docs" if settings.debug else None,

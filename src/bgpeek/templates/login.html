@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}bgpeek &middot; {{ t.sign_in | lower }}{% endblock %}
+{% block title %}{{ brand.site_name }} &middot; {{ brand.page_titles.get("login", t.sign_in | lower) }}{% endblock %}
 
 {% block body %}
 <div class="flex-1 flex items-center justify-center p-4">
@@ -8,8 +8,8 @@
         <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-8">
             {# Logo / app name #}
             <div class="flex items-center justify-center gap-2 mb-8">
-                <img src="/static/favicon.svg" alt="" class="w-8 h-8" aria-hidden="true">
-                <span class="text-xl font-bold tracking-tight">bgpeek</span>
+                <img src="{{ brand.logo_path }}" alt="" class="w-8 h-8" aria-hidden="true">
+                <span class="text-xl font-bold tracking-tight">{{ brand.site_name }}</span>
             </div>
 
             {% if error %}
@@ -48,6 +48,20 @@
                                transition-colors">
                     {{ t.sign_in }}
                 </button>
+
+                {% if allow_guest_continue %}
+                <a href="/"
+                   class="w-full inline-flex items-center justify-center rounded-md
+                          border border-slate-300 dark:border-slate-600
+                          bg-white dark:bg-slate-700
+                          text-slate-700 dark:text-slate-200
+                          px-4 py-2 text-sm font-medium
+                          hover:bg-slate-50 dark:hover:bg-slate-600
+                          focus:outline-none focus:ring-2 focus:ring-slate-500
+                          transition-colors">
+                    {{ t.continue_as_guest }}
+                </a>
+                {% endif %}
             </form>
 
             {% if oidc_enabled %}

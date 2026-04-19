@@ -62,6 +62,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | Variable | Default | Description |
 |---|---|---|
 | `BGPEEK_SESSION_SECRET` | `change-me-session-secret` | **Required for OIDC.** Secret for session cookie signing |
+| `BGPEEK_ACCESS_MODE` | `guest` | Access mode: `closed` (login required), `guest` (anonymous with restrictions), `open` (anonymous full access) |
+| `BGPEEK_PUBLIC_OUTPUT_LEVEL` | `restricted` | Output detail for public/guest users: `restricted` (hide communities/LP/MED, mask RFC1918), `standard` (all parsed fields, no raw), `full` (same as NOC) |
 
 ### LDAP
 
@@ -197,7 +199,7 @@ Pass `?deep=true` for a full connectivity check (PostgreSQL + Redis):
 ```json
 {
   "status": "ok",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "database": "ok",
   "redis": "ok"
 }
@@ -205,12 +207,37 @@ Pass `?deep=true` for a full connectivity check (PostgreSQL + Redis):
 
 Status is `degraded` if any backend is unreachable.
 
+## Branding
+
+| Variable | Default | Description |
+|---|---|---|
+| `BGPEEK_PRIMARY_ASN` | `65000` | Primary ASN (digits only) used for derived branding defaults and PeeringDB link generation |
+| `BGPEEK_BRAND_SITE_NAME` | _(empty)_ | Brand name shown in page titles and header; if empty, defaults to `AS<BGPEEK_PRIMARY_ASN> bgpeek` |
+| `BGPEEK_BRAND_PAGE_TITLES` | `{}` | JSON object with per-page title suffix overrides (text after `·`) without modifying language files. Supported keys: `index`, `login`, `history`, `result_page` |
+| `BGPEEK_BRAND_SITE_DESCRIPTION` | `Open-source looking glass for ISPs and IX operators` | OpenAPI/UI description text |
+| `BGPEEK_BRAND_LOGO_PATH` | `/static/favicon.svg` | Logo path/URL for header and login brand icon |
+| `BGPEEK_BRAND_FAVICON_PATH` | `/static/favicon.svg` | Favicon path/URL for browser tab icon |
+| `BGPEEK_BRAND_THEME_STORAGE_KEY` | `bgpeek-theme` | Browser localStorage key used for dark/light preference; set a unique value per installation to isolate theme preferences between deployments |
+| `BGPEEK_BRAND_FOOTER` | _(empty)_ | Optional footer HTML shown after a `·` separator; when empty, no suffix/separator is shown |
+| `BGPEEK_BRAND_CUSTOM_CSS` | _(empty)_ | Optional CSS injected into the base template style block |
+
+`BGPEEK_BRAND_PAGE_TITLES` examples:
+
+```bash
+# Override only the home page suffix:
+BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home"}'
+
+# Override all supported pages:
+BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home","login":"sign in","history":"query history","result_page":"shared result"}'
+```
+
 ## Other
 
 | Variable | Default | Description |
 |---|---|---|
 | `BGPEEK_DEFAULT_LANG` | `en` | Default UI language (`en` or `ru`) |
-| `BGPEEK_LG_LINKS` | _(empty)_ | JSON array of external Looking Glass links, e.g. `[{"name": "RETN", "url": "https://lg.retn.net"}]` |
+| `BGPEEK_LG_LINKS` | _(empty)_ | JSON array of external Looking Glass links, e.g. `[{"name": "Example LG", "url": "https://lg.example.com"}]` |
+| `BGPEEK_PEERINGDB_LINK_ENABLED` | `true` | Show/hide the PeeringDB icon link in the top-right header |
 | `BGPEEK_CONFIG_DIR` | `/etc/bgpeek` | Base configuration directory |
 | `BGPEEK_STATIC_DIR` | _(built-in)_ | Path to static files (override for custom themes) |
 | `BGPEEK_TEMPLATES_DIR` | _(built-in)_ | Path to Jinja2 templates (override for custom UI) |

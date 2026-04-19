@@ -1,0 +1,98 @@
+{% set is_authenticated = user is not none and user.id != 0 %}
+<details class="relative group shrink-0" data-user-menu>
+    <summary class="list-none flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600
+                    bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-700 dark:text-slate-200 shadow-sm
+                    hover:bg-slate-50 dark:hover:bg-slate-700/50
+                    focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400
+                    transition-colors cursor-pointer select-none">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.75 6.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M4.5 20.118a7.5 7.5 0 0115 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.5-1.632z"/>
+        </svg>
+        <span class="inline text-sm font-medium max-w-[11rem] truncate">
+            {% if is_authenticated %}
+            {{ user.username }}
+            {% else %}
+            {{ t.guest }}
+            {% endif %}
+        </span>
+        <svg class="w-3.5 h-3.5 opacity-75 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+        </svg>
+    </summary>
+    <div class="absolute right-0 top-full mt-2 w-72 rounded-md border border-slate-200 dark:border-slate-700
+                bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-20 overflow-hidden"
+         style="width: min(20rem, calc(100vw - 1rem)); max-width: calc(100vw - 1rem);"
+         data-user-menu-panel>
+        {% if is_authenticated %}
+        <div class="py-1">
+            <button type="button" disabled
+                    class="w-full text-left px-4 py-2 text-sm text-slate-400 dark:text-slate-500 cursor-not-allowed">
+                {{ t.account_settings }}
+            </button>
+        </div>
+        {% endif %}
+        <div class="border-t border-slate-100 dark:border-slate-700 py-1">
+            {% if is_authenticated %}
+            <form method="post" action="/auth/logout">
+                <button type="submit"
+                        class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200
+                               hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    {{ t.logout }}
+                </button>
+            </form>
+            {% else %}
+            <a href="/auth/login"
+               class="block px-4 py-2 text-sm text-slate-700 dark:text-slate-200
+                      hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                {{ t.login }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</details>
+<script>
+(function () {
+  "use strict";
+
+  var details = document.querySelector("details[data-user-menu]");
+  if (!details) return;
+  var panel = details.querySelector("[data-user-menu-panel]");
+  if (!panel) return;
+
+  function clampMenuToViewport() {
+    panel.style.transform = "";
+    var rect = panel.getBoundingClientRect();
+    var gutter = 8;
+    var shift = 0;
+
+    if (rect.right > window.innerWidth - gutter) {
+      shift = (window.innerWidth - gutter) - rect.right;
+    }
+    if (rect.left + shift < gutter) {
+      shift += gutter - (rect.left + shift);
+    }
+    if (shift !== 0) {
+      panel.style.transform = "translateX(" + shift + "px)";
+    }
+  }
+
+  function resetMenuClamp() {
+    panel.style.transform = "";
+  }
+
+  details.addEventListener("toggle", function () {
+    if (details.open) {
+      clampMenuToViewport();
+    } else {
+      resetMenuClamp();
+    }
+  });
+
+  window.addEventListener("resize", function () {
+    if (details.open) clampMenuToViewport();
+  });
+})();
+</script>
