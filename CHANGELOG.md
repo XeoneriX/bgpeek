@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Account settings page (`/auth/account`) for authenticated users to self-manage email and password, with validation and duplicate-email safeguards.
+- Reusable CSRF protection helpers (`core/csrf.py`) with token issuance/validation integrated into auth and admin form flows.
+- Branded API documentation page template (`templates/api_docs.html`) with dark-mode styling aligned to the app UI.
+
+### Changed
+
+- Header/navigation rendering is now centralized via shared template helpers and reusable partials, improving consistency across index, history, result, admin, and docs pages.
+
+### Internal
+
+- Template chrome refactor and user-context hardening in shared template wiring.
+- Auth, database user, admin UI, link, and template-helper test coverage expanded for account settings, link generation, and CSRF enforcement.
+
 ## [1.3.1] - 2026-04-19
 
 ### Added
@@ -218,6 +235,7 @@ Initial public release.
 - SSH credential management guide
 - REST API reference with curl examples
 
+[Unreleased]: https://github.com/xeonerix/bgpeek/compare/v1.3.1...HEAD
 [1.3.1]: https://github.com/xeonerix/bgpeek/releases/tag/v1.3.1
 [1.3.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.3.0
 [1.2.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.2.0
