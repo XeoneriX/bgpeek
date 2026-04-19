@@ -111,6 +111,11 @@ def _filter_bgp(data: dict[str, Any], level: str) -> dict[str, Any]:
             route["med"] = None
             filtered_routes.append(route)
         data["parsed_routes"] = filtered_routes
+        # The CLI text in filtered_output still carries the same fields we
+        # just stripped from parsed_routes. Clear it so JSON consumers and
+        # any code path other than the (already hidden) 'Show raw' toggle
+        # don't receive them via the text blob.
+        data["filtered_output"] = ""
     # standard: keep all parsed fields
     return data
 

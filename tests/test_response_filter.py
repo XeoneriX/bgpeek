@@ -147,6 +147,23 @@ def test_restricted_bgp_keeps_prefix_nexthop_aspath() -> None:
 # --- 4. Restricted hides raw_output ---
 
 
+def test_restricted_clears_bgp_filtered_output() -> None:
+    """filtered_output (CLI text) carries LP/communities/MED in its raw form;
+    restricted level must scrub it too, not just parsed_routes."""
+    resp = _make_bgp_response(
+        filtered_output=(
+            "8.8.8.0/24 from 10.0.0.1\n"
+            "    localpref 200, MED 100\n"
+            "    Communities: 64500:100 64500:200"
+        ),
+    )
+    with patch("bgpeek.core.response_filter.settings") as mock_settings:
+        mock_settings.public_output_level = "restricted"
+        result = filter_response(resp, user_role="public")
+
+    assert result.filtered_output == ""
+
+
 def test_restricted_hides_raw_output() -> None:
     resp = _make_bgp_response()
     with patch("bgpeek.core.response_filter.settings") as mock_settings:
