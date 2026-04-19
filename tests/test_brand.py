@@ -20,6 +20,38 @@ def test_primary_asn_rejects_as_prefix() -> None:
         Settings(_env_file=None, primary_asn="AS64496")
 
 
+def test_primary_asn_accepts_empty_string() -> None:
+    settings = Settings(_env_file=None, primary_asn="")
+    assert settings.primary_asn == ""
+
+
+def test_primary_asn_unset_hides_peeringdb_icon(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from bgpeek.core.templates import templates
+
+    monkeypatch.setitem(templates.env.globals["brand"], "primary_asn", "")
+    monkeypatch.setitem(templates.env.globals["brand"], "peeringdb_link_enabled", False)
+
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "/static/peeringdb.png" not in response.text
+    assert "peeringdb.com/asn/" not in response.text
+
+
+def test_primary_asn_unset_site_name_has_no_as_prefix(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from bgpeek.core.templates import templates
+
+    monkeypatch.setitem(templates.env.globals["brand"], "site_name", "bgpeek")
+    monkeypatch.setitem(templates.env.globals["brand"], "primary_asn", "")
+    monkeypatch.setitem(templates.env.globals["brand"], "peeringdb_link_enabled", False)
+
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "<title>bgpeek &middot; looking glass</title>" in response.text
+    assert "AS bgpeek" not in response.text
+
+
 def test_brand_page_titles_parses_json(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv(
         "BGPEEK_BRAND_PAGE_TITLES",

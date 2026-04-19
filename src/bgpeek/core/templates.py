@@ -16,8 +16,11 @@ from bgpeek.core.time_utils import timeago
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 _brand_footer = settings.brand_footer.strip()
-_brand_site_name = settings.brand_site_name.strip() or f"AS{settings.primary_asn} bgpeek"
-_peeringdb_url = f"https://www.peeringdb.com/asn/{settings.primary_asn}"
+_primary_asn = str(settings.primary_asn).strip()
+_has_asn = bool(_primary_asn)
+_default_site_name = f"AS{_primary_asn} bgpeek" if _has_asn else "bgpeek"
+_brand_site_name = settings.brand_site_name.strip() or _default_site_name
+_peeringdb_url = f"https://www.peeringdb.com/asn/{_primary_asn}" if _has_asn else ""
 
 templates.env.filters["timeago"] = timeago
 templates.env.filters["annotate_community"] = annotate_community
@@ -29,8 +32,8 @@ templates.env.globals["brand"] = {
     "favicon_path": settings.brand_favicon_path,
     "theme_storage_key": settings.brand_theme_storage_key,
     "footer": _brand_footer,
-    "primary_asn": settings.primary_asn,
-    "peeringdb_link_enabled": settings.peeringdb_link_enabled,
+    "primary_asn": _primary_asn,
+    "peeringdb_link_enabled": settings.peeringdb_link_enabled and _has_asn,
     "peeringdb_url": _peeringdb_url,
     "custom_css": settings.brand_custom_css.strip(),
 }

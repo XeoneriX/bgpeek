@@ -99,8 +99,8 @@ class Settings(BaseSettings):
 
     # --- ASN ---
     primary_asn: int | str = Field(
-        default="65000",
-        description="Primary ASN (digits only) used for default branding and PeeringDB link generation.",
+        default="",
+        description="Primary ASN (digits only) used for default branding and PeeringDB link generation. If unset, site_name falls back to 'bgpeek' and the PeeringDB link is hidden.",
     )
 
     # --- Metrics ---
@@ -239,8 +239,10 @@ class Settings(BaseSettings):
     @field_validator("primary_asn")
     @classmethod
     def validate_primary_asn(cls: type["Settings"], value: int | str) -> str:
-        """Validate primary_asn as digits-only string."""
+        """Validate primary_asn as digits-only string. Empty string is allowed and disables ASN-based branding."""
         normalized = str(value).strip()
+        if not normalized:
+            return ""
         if not normalized.isdigit():
             raise ValueError("primary_asn must contain digits only (for example: 152183)")
         return normalized
