@@ -407,6 +407,17 @@ class TestAccountSettings:
         assert resp.status_code == status.HTTP_200_OK
         assert "Account settings" in resp.text
 
+    def test_settings_page_requires_authentication(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        client = TestClient(app)
+        resp = client.get("/account/settings")
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
     def test_update_email_redirects_on_success(self) -> None:
         app = self._build_settings_app(_LOCAL_USER)
         with (
@@ -421,6 +432,14 @@ class TestAccountSettings:
             resp = client.post("/account/settings/email", data={"email": "new@example.com"})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] == "/account/settings?updated=email"
+
+    def test_update_email_rejects_too_long_value(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with self._patch_settings_pool():
+            client = TestClient(app, follow_redirects=False)
+            resp = client.post("/account/settings/email", data={"email": ("a" * 256) + "@example.com"})
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "valid email address" in resp.text
 
     def test_update_password_requires_matching_confirmation(self) -> None:
         app = self._build_settings_app(_LOCAL_USER)
@@ -463,6 +482,28 @@ class TestAccountSettings:
             )
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] == "/account/settings?updated=password"
+
+    def test_update_password_rejects_invalid_current_password(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with (
+            self._patch_settings_pool(),
+            patch(
+                "bgpeek.api.auth.crud.verify_local_user_password",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            resp = client.post(
+                "/account/settings/password",
+                data={
+                    "current_password": "wrong-pass",
+                    "new_password": "new-secret-123",
+                    "confirm_password": "new-secret-123",
+                },
+            )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Current password is incorrect" in resp.text
 
     def test_update_password_disallowed_for_non_local_accounts(self) -> None:
         non_local_user = _ADMIN.model_copy(update={"auth_provider": "api_key"})

@@ -169,7 +169,7 @@ async def test_get_user_by_username_missing(pool: asyncpg.Pool) -> None:
     assert user is None
 
 
-async def test_update_user_email(pool: asyncpg.Pool) -> None:
+async def test_update_user_email_via_update_user(pool: asyncpg.Pool) -> None:
     created = await crud.create_local_user(pool, _local_payload("email-user"))
     updated = await crud.update_user(
         pool,
