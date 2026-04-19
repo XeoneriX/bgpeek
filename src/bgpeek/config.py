@@ -238,7 +238,7 @@ class Settings(BaseSettings):
 
     @field_validator("primary_asn")
     @classmethod
-    def validate_primary_asn(cls: "Settings", value: int | str) -> str:
+    def validate_primary_asn(cls: type["Settings"], value: int | str) -> str:
         """Validate primary_asn as digits-only string."""
         normalized = str(value).strip()
         if not normalized.isdigit():
