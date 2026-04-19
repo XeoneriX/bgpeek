@@ -190,7 +190,7 @@ class Settings(BaseSettings):
         default=60, description="Cache TTL for RPKI API errors (seconds)"
     )
 
-    # --- LG links ---
+    # --- Links ---
     lg_links: str = ""  # JSON: [{"name": "Example LG", "url": "https://lg.example.com"}, ...]
     peeringdb_link_enabled: bool = Field(
         default=True,

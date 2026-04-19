@@ -62,6 +62,8 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | Variable | Default | Description |
 |---|---|---|
 | `BGPEEK_SESSION_SECRET` | `change-me-session-secret` | **Required for OIDC.** Secret for session cookie signing |
+| `BGPEEK_ACCESS_MODE` | `guest` | Access mode: `closed` (login required), `guest` (anonymous with restrictions), `open` (anonymous full access) |
+| `BGPEEK_PUBLIC_OUTPUT_LEVEL` | `restricted` | Output detail for public/guest users: `restricted` (hide communities/LP/MED, mask RFC1918), `standard` (all parsed fields, no raw), `full` (same as NOC) |
 
 ### LDAP
 
