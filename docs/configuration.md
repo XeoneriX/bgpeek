@@ -66,6 +66,7 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | `BGPEEK_PUBLIC_OUTPUT_LEVEL` | `restricted` | Output detail for public/guest users: `restricted` (hide communities/LP/MED, mask RFC1918), `standard` (all parsed fields, no raw), `full` (same as NOC) |
 | `BGPEEK_MAX_PREFIX_V4` | `24` | Longest IPv4 prefix accepted at validation and kept in public output. Range 8–32. Raise to expose more-specifics (e.g. `27`) if your threat model allows it. Privileged roles bypass the output filter but input validation still applies. |
 | `BGPEEK_MAX_PREFIX_V6` | `48` | Longest IPv6 prefix accepted at validation and kept in public output. Range 16–128. |
+| `BGPEEK_ACCEPT_BARE_IP_LOOKUP` | `true` | Accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match; the output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict rejection. |
 
 ### LDAP
 

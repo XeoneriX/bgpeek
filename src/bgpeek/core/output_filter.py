@@ -65,6 +65,11 @@ def _is_too_specific(value: str, max_v4: int, max_v6: int) -> bool | None:
     return prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6)
 
 
+def has_any_prefix(text: str) -> bool:
+    """True if `text` contains at least one prefix-looking token (addr/len)."""
+    return bool(_PREFIX_RE.search(text))
+
+
 def filter_prefixes(
     prefixes: Iterable[str],
     *,

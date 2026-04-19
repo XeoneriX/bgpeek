@@ -125,6 +125,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no_output": "No output — route not found or empty response",
         "network_not_in_table": "Network not in table",
         "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
+        "lpm_hidden_title": "Match hidden at your output level",
+        "lpm_hidden_hint": "The router matched this address to a more-specific prefix than is shown publicly. Privileged roles see the full entry.",
         # Admin panel
         "admin": "Admin",
         "looking_glass": "Looking Glass",
@@ -312,6 +314,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_devices_health_unknown_hint": "Ещё не было успешных сессий с устройством. Статус обновится после первого успешного запроса или пробы.",
         "admin_devices_junos_source_warning": "Большинству Junos-устройств в looking-glass режиме нужен явный source IP. Без него ping/trace может уйти через служебный интерфейс и отфильтроваться uRPF на аплинке. Сохранить всё равно можно — это предупреждение, не блокировка.",
         "admin_saving": "Сохраняем…",
+        "lpm_hidden_title": "Совпадение скрыто на вашем уровне вывода",
+        "lpm_hidden_hint": "Роутер сопоставил этот адрес с более специфичным префиксом, чем показывается публично. Привилегированные роли видят полную запись.",
     },
 }
 
