@@ -69,7 +69,9 @@ def _render_account_settings(
             "can_change_password": user.auth_provider == "local",
             "csrf_token": csrf_token,
         },
-        status_code=status.HTTP_400_BAD_REQUEST if email_error or password_error else status.HTTP_200_OK,
+        status_code=status.HTTP_400_BAD_REQUEST
+        if email_error or password_error
+        else status.HTTP_200_OK,
     )
 
 
@@ -104,9 +106,13 @@ def _render_account_settings_with_csrf(
 
 
 @router.get("/auth/login", response_class=HTMLResponse)
-async def login_page(request: Request) -> HTMLResponse:
+async def login_page(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+) -> HTMLResponse:
     """Render the login form."""
-    return templates.TemplateResponse(
+    csrf_token, signed_token = issue_csrf_token(csrf_protect)
+    response = templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
@@ -115,13 +121,18 @@ async def login_page(request: Request) -> HTMLResponse:
             "lang": request.state.lang,
             "oidc_enabled": settings.oidc_enabled,
             "allow_guest_continue": settings.access_mode in ("guest", "open"),
+            "csrf_token": csrf_token,
         },
     )
+    set_csrf_cookie(csrf_protect, response, signed_token)
+    return response
 
 
 @router.post("/auth/login", response_model=None)
 async def login_submit(
     request: Request,
+    _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     username: str = Form(),  # noqa: B008
     password: str = Form(),  # noqa: B008
     _rl: None = Depends(rate_limit_login),  # noqa: B008
@@ -143,7 +154,8 @@ async def login_submit(
 
     if user is None:
         log.info("web login failed", username=username)
-        return templates.TemplateResponse(
+        csrf_token, signed_token = issue_csrf_token(csrf_protect)
+        response = templates.TemplateResponse(
             request=request,
             name="login.html",
             context={
@@ -152,9 +164,12 @@ async def login_submit(
                 "lang": request.state.lang,
                 "oidc_enabled": settings.oidc_enabled,
                 "allow_guest_continue": settings.access_mode in ("guest", "open"),
+                "csrf_token": csrf_token,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
+        set_csrf_cookie(csrf_protect, response, signed_token)
+        return response
 
     # Update last_login_at
     await get_pool().execute(
@@ -187,7 +202,7 @@ async def login_submit(
 
 
 @router.post("/auth/logout")
-async def logout() -> RedirectResponse:
+async def logout(_csrf_ok: None = Depends(validate_csrf)) -> RedirectResponse:  # noqa: B008
     """Clear the auth cookie and redirect to login or main page."""
     url = "/auth/login" if settings.access_mode in ("closed", "guest") else "/"
     response = RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
@@ -205,7 +220,7 @@ async def logout() -> RedirectResponse:
 async def account_settings_page(
     request: Request,
     user: User = Depends(authenticate),  # noqa: B008
-    csrf_protect: CsrfProtect = Depends(),
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     updated: str | None = None,
 ) -> HTMLResponse:
     """Render account settings for the authenticated user."""
@@ -227,7 +242,7 @@ async def account_settings_update_email(
     request: Request,
     email: str = Form(""),
     _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
-    csrf_protect: CsrfProtect = Depends(),
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     user: User = Depends(authenticate),  # noqa: B008
 ) -> Response:
     """Update the authenticated user's email address."""
@@ -248,7 +263,9 @@ async def account_settings_update_email(
     )
     if updated_user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
-    return RedirectResponse("/account/settings?updated=email", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        "/account/settings?updated=email", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.post("/account/settings/password", response_class=HTMLResponse)
@@ -258,7 +275,7 @@ async def account_settings_update_password(
     new_password: str = Form(""),
     confirm_password: str = Form(""),
     _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
-    csrf_protect: CsrfProtect = Depends(),
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     user: User = Depends(authenticate),  # noqa: B008
 ) -> Response:
     """Change password for the authenticated local-auth user."""
@@ -304,7 +321,9 @@ async def account_settings_update_password(
     updated = await crud.update_local_user_password(get_pool(), user.id, new_password)
     if not updated:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
-    return RedirectResponse("/account/settings?updated=password", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        "/account/settings?updated=password", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/api/auth/me", response_model=UserPublic)

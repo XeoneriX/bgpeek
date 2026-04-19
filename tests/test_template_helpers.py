@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from bgpeek.core.templates import _base_context, header_links_for
 from bgpeek.models.user import UserRole
 
-
 _TRANSLATIONS = {
     "looking_glass": "Looking Glass",
     "history": "History",
@@ -24,7 +23,9 @@ def _ctx(path: str | None = None) -> dict[str, object]:
 
 
 def test_base_context_returns_user_from_request_state() -> None:
-    request = SimpleNamespace(state=SimpleNamespace(user="alice"), url=SimpleNamespace(path="/history"))
+    request = SimpleNamespace(
+        state=SimpleNamespace(user="alice"), url=SimpleNamespace(path="/history")
+    )
     assert _base_context(request) == {"user": "alice", "current_path": "/history"}
 
 
@@ -115,5 +116,7 @@ def test_header_links_for_allows_current_path_override() -> None:
 
 
 def test_header_links_for_home_stays_active_on_non_history_non_admin_pages() -> None:
-    links = header_links_for(_ctx("/result/abc123"), _TRANSLATIONS, user=SimpleNamespace(role="public"))
+    links = header_links_for(
+        _ctx("/result/abc123"), _TRANSLATIONS, user=SimpleNamespace(role="public")
+    )
     assert links[0] == {"href": "/", "label": "Looking Glass", "active": True}

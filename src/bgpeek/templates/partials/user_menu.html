@@ -39,6 +39,7 @@
         <div class="border-t border-slate-100 dark:border-slate-700 py-1">
             {% if is_authenticated %}
             <form method="post" action="/auth/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token | default('') }}">
                 <button type="submit"
                         class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200
                                hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">

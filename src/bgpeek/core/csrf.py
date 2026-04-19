@@ -18,8 +18,8 @@ class CsrfSettings(BaseSettings):
     cookie_samesite: str = "lax"
     cookie_secure: bool = settings.cookie_secure
     cookie_httponly: bool = True
-    token_location: str = "body"
-    token_key: str = "csrf_token"
+    token_location: str = "body"  # noqa: S105
+    token_key: str = "csrf_token"  # noqa: S105
 
 
 @CsrfProtect.load_config
@@ -37,7 +37,10 @@ def set_csrf_cookie(csrf_protect: CsrfProtect, response: Response, signed_token:
     csrf_protect.set_csrf_cookie(signed_token, response)
 
 
-async def validate_csrf(request: Request, csrf_protect: CsrfProtect = Depends()) -> None:
+async def validate_csrf(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+) -> None:
     """Validate CSRF token from form body against signed cookie."""
     try:
         await csrf_protect.validate_csrf(request)

@@ -337,14 +337,23 @@ class TestWebLogin:
 
     def test_login_success_sets_cookie_and_redirects(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with self._patch_api_pool(), self._patch_credentials(_LOCAL_USER), self._patch_ldap():
             client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
             resp = client.post(
                 "/auth/login",
-                data={"username": "local-user", "password": "secret123"},
+                data={
+                    "username": "local-user",
+                    "password": "secret123",
+                    "csrf_token": csrf_token,
+                },
             )
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] == "/"
@@ -361,26 +370,30 @@ class TestWebLogin:
             self._patch_api_pool(),
             self._patch_credentials(None),
             self._patch_ldap(None),
-            self._patch_templates() as mock_tpl,
         ):
-            mock_tpl.TemplateResponse.return_value = HTMLResponse(
-                "<html>error</html>", status_code=401
-            )
             client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
             resp = client.post(
                 "/auth/login",
-                data={"username": "bad-user", "password": "wrong"},
+                data={"username": "bad-user", "password": "wrong", "csrf_token": csrf_token},
             )
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_logout_clears_cookie(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         client = TestClient(app, follow_redirects=False)
         client.cookies.set(_COOKIE_NAME, "some-token")
-        resp = client.post("/auth/logout")
+        csrf_page = client.get("/auth/login")
+        assert csrf_page.status_code == status.HTTP_200_OK
+        csrf_token = _extract_csrf_token(csrf_page.text)
+        resp = client.post("/auth/logout", data={"csrf_token": csrf_token})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] in ("/", "/auth/login")
         # Cookie should be cleared (max-age=0 or deleted)

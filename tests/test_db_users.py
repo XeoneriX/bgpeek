@@ -192,4 +192,6 @@ async def test_update_local_user_password(pool: asyncpg.Pool) -> None:
     changed = await crud.update_local_user_password(pool, created.id, "new-secure-password-456")
     assert changed is True
     assert await crud.verify_local_user_password(pool, created.id, "secure-password-123") is False
-    assert await crud.verify_local_user_password(pool, created.id, "new-secure-password-456") is True
+    assert (
+        await crud.verify_local_user_password(pool, created.id, "new-secure-password-456") is True
+    )
