@@ -1,0 +1,7 @@
+<div class="px-5 py-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700">
+    <a href="https://github.com/xeonerix/bgpeek"
+       class="hover:text-slate-600 dark:hover:text-slate-300 transition-colors">bgpeek</a> v{{ version }}
+    {% if brand.footer %}
+    <span class="mx-1">&middot;</span>{{ brand.footer | safe }}
+    {% endif %}
+</div>

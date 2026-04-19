@@ -12,7 +12,7 @@ from itertools import groupby
 from operator import attrgetter
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -198,6 +198,22 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class TemplateUserMiddleware(BaseHTTPMiddleware):
+    """Attach best-effort authenticated user to request state for templates."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        try:
+            request.state.user = await optional_auth(
+                x_api_key=request.headers.get("X-API-Key"),
+                authorization=request.headers.get("Authorization"),
+                bgpeek_token=request.cookies.get("bgpeek_token"),
+            )
+        except HTTPException:
+            # Invalid/expired credentials should not break template rendering.
+            request.state.user = None
+        return await call_next(request)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add standard security headers to all responses."""
 
@@ -308,6 +324,7 @@ app = FastAPI(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(I18nMiddleware)
+app.add_middleware(TemplateUserMiddleware)
 
 # OIDC must be set up before routes are registered (needs SessionMiddleware).
 setup_oidc(app)
@@ -401,6 +418,9 @@ async def index(
     # this device" link). Silently ignored if the name doesn't match an
     # enabled/visible device.
     preselect_device = location if location and any(d.name == location for d in devices) else None
+    header_links: list[tuple[str, str]] = [("/history", request.state.t["history"]), ("/api/docs", request.state.t["api_docs"])]
+    if user is not None and user.role == UserRole.ADMIN:
+        header_links.append(("/admin", request.state.t["admin"]))
 
     return templates.TemplateResponse(
         request=request,
@@ -414,6 +434,7 @@ async def index(
             "lang": request.state.lang,
             "lg_links": _lg_links,
             "preselect_device": preselect_device,
+            "header_links": header_links,
         },
     )
 

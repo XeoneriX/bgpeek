@@ -7,6 +7,9 @@ its own ``Environment``, so filters/globals don't propagate.
 
 from __future__ import annotations
 
+from typing import Any
+
+from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from bgpeek.config import settings
@@ -14,7 +17,16 @@ from bgpeek.core.community_labels import annotate as annotate_community
 from bgpeek.core.community_labels import row_color as community_row_color
 from bgpeek.core.time_utils import timeago
 
-templates = Jinja2Templates(directory=str(settings.templates_dir))
+
+def _base_context(request: Request) -> dict[str, Any]:
+    """Default context injected into every template render."""
+    return {"user": getattr(request.state, "user", None)}
+
+
+templates = Jinja2Templates(
+    directory=str(settings.templates_dir),
+    context_processors=[_base_context],
+)
 _brand_footer = settings.brand_footer.strip()
 _primary_asn = str(settings.primary_asn).strip()
 _has_asn = bool(_primary_asn)

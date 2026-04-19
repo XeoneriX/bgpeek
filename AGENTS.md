@@ -59,6 +59,24 @@ artifact); in production the Dockerfile builds it at image build time.
 5. Open a PR; the maintainer picks the merge strategy.
 6. Do not push directly to `main` or tag releases — the maintainer handles both.
 
+## Version bump checklist (bgpeek)
+
+When changing the bgpeek release version (for example `1.3.1` -> `1.3.2`), update all of these together:
+
+1. **Python package version:** `pyproject.toml` -> `[project].version`
+2. **Runtime/app version constant:** `src/bgpeek/__init__.py` -> `__version__`
+3. **Lockfile package entry:** `uv.lock` -> `[[package]] name = "bgpeek"` block `version` field (regenerate lockfile if needed)
+4. **Changelog entry:** `CHANGELOG.md`
+   - add new `## [x.y.z] - YYYY-MM-DD` section at the top
+   - add/update the `[x.y.z]: https://github.com/xeonerix/bgpeek/releases/tag/vx.y.z` link at the bottom
+
+Quick verification before commit:
+
+```bash
+rg -n '^version = "|__version__ = "|^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\]|^\\[[0-9]+\\.[0-9]+\\.[0-9]+\\]:' \
+  pyproject.toml src/bgpeek/__init__.py CHANGELOG.md uv.lock
+```
+
 ## Adding a new vendor platform
 
 To add a platform (e.g. Nokia SR OS, MikroTik RouterOS), touch these four places:
