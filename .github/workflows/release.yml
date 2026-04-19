@@ -11,25 +11,45 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-      - name: Generate release notes
+        with:
+          fetch-depth: 0  # need full history + tags for `git describe`
+      - name: Build release notes
         run: |
-          echo "## What's new" > notes.md
-          echo "" >> notes.md
-          echo "See [CHANGELOG](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for details." >> notes.md
-          echo "" >> notes.md
-          echo "## Install" >> notes.md
-          echo "" >> notes.md
-          echo '```bash' >> notes.md
-          echo "# Docker" >> notes.md
-          echo "docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}" >> notes.md
-          echo "" >> notes.md
-          echo "# pip" >> notes.md
-          echo "pip install bgpeek" >> notes.md
-          echo '```' >> notes.md
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          PREV_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+
+          # Extract this version's section from CHANGELOG.md (between "## [VERSION]" and the next "## [").
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { flag=1; next }
+            flag && /^## \[/ { exit }
+            flag { print }
+          ' CHANGELOG.md > notes.md
+
+          # Fallback if no matching section was found.
+          if [ ! -s notes.md ]; then
+            echo "See [CHANGELOG](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/CHANGELOG.md) for details." > notes.md
+            echo "" >> notes.md
+          fi
+
+          {
+            echo ""
+            echo "## Install"
+            echo ""
+            echo "_Coming soon — GHCR and PyPI publishing will be enabled in a future release._"
+          } >> notes.md
+
+          if [ -n "$PREV_TAG" ]; then
+            {
+              echo ""
+              echo "**Full Changelog:** https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}"
+            } >> notes.md
+          fi
       - uses: softprops/action-gh-release@v3
         with:
           body_path: notes.md
-          generate_release_notes: true
+          generate_release_notes: false
 
   # TODO: uncomment when PyPI trusted publisher is configured
   # publish-pypi:
