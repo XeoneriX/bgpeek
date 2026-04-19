@@ -201,7 +201,7 @@ Pass `?deep=true` for a full connectivity check (PostgreSQL + Redis):
 ```json
 {
   "status": "ok",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "database": "ok",
   "redis": "ok"
 }
