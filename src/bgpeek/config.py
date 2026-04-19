@@ -169,6 +169,10 @@ class Settings(BaseSettings):
         le=128,
         description="Longest IPv6 prefix length accepted at validation and kept in filtered output.",
     )
+    accept_bare_ip_lookup: bool = Field(
+        default=True,
+        description="Accept bare host addresses (e.g. 8.8.8.8) as BGP query targets. The router performs longest-prefix-match and returns whichever covering prefix exists; the output filter still enforces BGPEEK_MAX_PREFIX_V4/V6 on the response, so the prefix-length invariant holds. Set to false to restore pre-v1.3.2 behavior (bare IPs rejected as 'too specific').",
+    )
 
     # --- SSH ---
     ssh_username: str = Field(

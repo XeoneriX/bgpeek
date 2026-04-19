@@ -105,6 +105,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no_output": "No output — route not found or empty response",
         "network_not_in_table": "Network not in table",
         "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
+        "lpm_hidden_title": "Match hidden at your output level",
+        "lpm_hidden_hint": "The router matched this address to a more-specific prefix than is shown publicly. Privileged roles see the full entry.",
         # Admin panel
         "admin": "Admin",
         "looking_glass": "Looking Glass",
@@ -284,6 +286,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "n_selected": "выбрано",
         "resolved_to": "разрешено в",
         "other_looking_glasses": "Другие Looking Glass",
+        "lpm_hidden_title": "Совпадение скрыто на вашем уровне вывода",
+        "lpm_hidden_hint": "Роутер сопоставил этот адрес с более специфичным префиксом, чем показывается публично. Привилегированные роли видят полную запись.",
     },
 }
 

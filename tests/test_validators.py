@@ -58,8 +58,6 @@ def test_validate_target_passes(value: str, expected: IPv4Network | IPv6Network)
         ("100.64.0.1", "bogon"),
         ("224.0.0.1", "bogon"),
         ("1.1.1.0/25", "too specific"),
-        ("8.8.8.8", "too specific"),
-        ("8.8.8.8/32", "too specific"),
         ("2001:db8::/32", "bogon"),
         ("fe80::/10", "bogon"),
         ("2001:4860::/64", "too specific"),
@@ -222,6 +220,50 @@ def test_validate_target_custom_thresholds() -> None:
     assert result == IPv4Network("8.8.8.0/25")
     with pytest.raises(TargetValidationError):
         validate_target("8.8.8.0/24", max_v4=23)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["8.8.8.8", "1.1.1.1", "8.8.8.8/32", "2001:4860:4860::8888", "2606:4700:4700::1111/128"],
+)
+def test_validate_target_accepts_bare_host_by_default(value: str) -> None:
+    """Bare host addresses (/32, /128) bypass prefix-too-specific by default.
+
+    This is the LPM-lookup intent: the router resolves the bare address to its
+    covering prefix. Output filter still enforces max_v4/max_v6 on the response.
+    """
+    result = validate_target(value)
+    assert result.prefixlen in (32, 128)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["8.8.8.8", "8.8.8.8/32", "2001:4860:4860::8888", "2001:4860:4860::8888/128"],
+)
+def test_validate_target_rejects_bare_host_when_flag_off(value: str) -> None:
+    """When accept_bare_ip_lookup=False, host addresses are treated like any
+    explicit prefix and rejected by the cutoff. Pre-v1.3.2 behavior."""
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target(value, accept_bare_ip_lookup=False)
+    assert "too specific" in excinfo.value.reason
+
+
+def test_validate_target_flag_does_not_bypass_bogon_or_default() -> None:
+    """accept_bare_ip_lookup only affects the prefix-length check —
+    bogon/default/unspecified validation still applies."""
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("10.0.0.1", accept_bare_ip_lookup=True)
+    assert "bogon" in excinfo.value.reason
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("0.0.0.0", accept_bare_ip_lookup=True)  # noqa: S104
+    assert "unspecified" in excinfo.value.reason
+
+
+def test_validate_target_flag_does_not_affect_explicit_prefixes() -> None:
+    """An explicit /25 is still rejected even with the flag on — only bare
+    hosts (/32, /128) are exempt from the cutoff."""
+    with pytest.raises(TargetValidationError):
+        validate_target("8.8.8.0/25", accept_bare_ip_lookup=True)
 
 
 @pytest.mark.parametrize(

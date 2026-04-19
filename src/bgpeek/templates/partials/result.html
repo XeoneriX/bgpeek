@@ -161,15 +161,16 @@
     </details>
     {% endif %}
     {% elif result.query_type == 'bgp_route' %}
-    {# BGP query but no routes parsed — router returned "not in table" or empty. #}
+    {# BGP query but no routes parsed — either genuinely "not in table",
+       or the LPM match was more-specific than the public cutoff. #}
     <div class="px-4 py-6 text-center">
         <div class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300 font-medium">
             <svg class="w-5 h-5 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
             </svg>
-            <span>{{ t.network_not_in_table }}</span>
+            <span>{{ t.lpm_hidden_title if result.lpm_hidden else t.network_not_in_table }}</span>
         </div>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t.network_not_in_table_hint }}</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ t.lpm_hidden_hint if result.lpm_hidden else t.network_not_in_table_hint }}</p>
     </div>
     {% if not hide_raw and result.filtered_output and result.filtered_output.strip() %}
     <details class="border-t border-slate-200 dark:border-slate-700">
