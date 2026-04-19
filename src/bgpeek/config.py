@@ -191,7 +191,11 @@ class Settings(BaseSettings):
     )
 
     # --- LG links ---
-    lg_links: str = ""  # JSON: [{"name": "RETN", "url": "https://lg.retn.net"}, ...]
+    lg_links: str = ""  # JSON: [{"name": "Example LG", "url": "https://lg.example.com"}, ...]
+    peeringdb_link_enabled: bool = Field(
+        default=True,
+        description="Show a PeeringDB link in the top-right header using primary_asn.",
+    )
 
     # --- Branding ---
     brand_site_name: str = Field(
@@ -221,10 +225,6 @@ class Settings(BaseSettings):
     brand_footer: str = Field(
         default="",
         description="Optional footer suffix rendered as HTML after the '·' separator. The 'bgpeek v<version>' prefix is always shown.",
-    )
-    brand_peeringdb_link_enabled: bool = Field(
-        default=True,
-        description="Show a PeeringDB link in the top-right header using primary_asn.",
     )
     brand_custom_css: str = Field(
         default="",

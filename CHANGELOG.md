@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Branding/link coverage tests:
+  - `tests/test_brand.py` for primary ASN validation and branding template behavior
+  - `tests/test_links.py` for LG links parsing and PeeringDB header toggle rendering
+
+### Changed
+
+- PeeringDB header toggle setting is now consistently exposed as `BGPEEK_PEERINGDB_LINK_ENABLED`.
+- Branding and links configuration documentation/examples were clarified and aligned:
+  - `.env.example` now includes expanded inline guidance for branding/link settings
+  - `docs/configuration.md` now documents PeeringDB toggle under Links and keeps branding keys focused on branding concerns
+- Template branding globals now reference `settings.peeringdb_link_enabled` directly.
+
 ## [1.2.0] - 2026-04-18
 
 ### Added

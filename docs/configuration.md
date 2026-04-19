@@ -211,13 +211,12 @@ Status is `degraded` if any backend is unreachable.
 |---|---|---|
 | `BGPEEK_PRIMARY_ASN` | `65000` | Primary ASN (digits only) used for derived branding defaults and PeeringDB link generation |
 | `BGPEEK_BRAND_SITE_NAME` | _(empty)_ | Brand name shown in page titles and header; if empty, defaults to `AS<BGPEEK_PRIMARY_ASN> bgpeek` |
-| `BGPEEK_BRAND_PAGE_TITLES` | `{}` | JSON object with per-page title suffix overrides (text after `·`). Supported keys: `index`, `login`, `history`, `result_page` |
+| `BGPEEK_BRAND_PAGE_TITLES` | `{}` | JSON object with per-page title suffix overrides (text after `·`) without modifying language files. Supported keys: `index`, `login`, `history`, `result_page` |
 | `BGPEEK_BRAND_SITE_DESCRIPTION` | `Open-source looking glass for ISPs and IX operators` | OpenAPI/UI description text |
 | `BGPEEK_BRAND_LOGO_PATH` | `/static/favicon.svg` | Logo path/URL for header and login brand icon |
 | `BGPEEK_BRAND_FAVICON_PATH` | `/static/favicon.svg` | Favicon path/URL for browser tab icon |
-| `BGPEEK_BRAND_THEME_STORAGE_KEY` | `bgpeek-theme` | localStorage key used for dark/light preference |
-| `BGPEEK_BRAND_PEERINGDB_LINK_ENABLED` | `true` | Show/hide the PeeringDB link in the top-right header |
-| `BGPEEK_BRAND_FOOTER` | _(empty)_ | Optional footer HTML shown after the `·` separator; when empty, no suffix/separator is shown |
+| `BGPEEK_BRAND_THEME_STORAGE_KEY` | `bgpeek-theme` | Browser localStorage key used for dark/light preference; set a unique value per installation to isolate theme preferences between deployments |
+| `BGPEEK_BRAND_FOOTER` | _(empty)_ | Optional footer HTML shown after a `·` separator; when empty, no suffix/separator is shown |
 | `BGPEEK_BRAND_CUSTOM_CSS` | _(empty)_ | Optional CSS injected into the base template style block |
 
 `BGPEEK_BRAND_PAGE_TITLES` examples:
@@ -235,7 +234,8 @@ BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home","login":"sign in","history":"
 | Variable | Default | Description |
 |---|---|---|
 | `BGPEEK_DEFAULT_LANG` | `en` | Default UI language (`en` or `ru`) |
-| `BGPEEK_LG_LINKS` | _(empty)_ | JSON array of external Looking Glass links, e.g. `[{"name": "RETN", "url": "https://lg.retn.net"}]` |
+| `BGPEEK_LG_LINKS` | _(empty)_ | JSON array of external Looking Glass links, e.g. `[{"name": "Example LG", "url": "https://lg.example.com"}]` |
+| `BGPEEK_PEERINGDB_LINK_ENABLED` | `true` | Show/hide the PeeringDB icon link in the top-right header |
 | `BGPEEK_CONFIG_DIR` | `/etc/bgpeek` | Base configuration directory |
 | `BGPEEK_STATIC_DIR` | _(built-in)_ | Path to static files (override for custom themes) |
 | `BGPEEK_TEMPLATES_DIR` | _(built-in)_ | Path to Jinja2 templates (override for custom UI) |

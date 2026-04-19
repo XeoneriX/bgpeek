@@ -30,7 +30,7 @@ templates.env.globals["brand"] = {
     "theme_storage_key": settings.brand_theme_storage_key,
     "footer": _brand_footer,
     "primary_asn": settings.primary_asn,
-    "peeringdb_link_enabled": settings.brand_peeringdb_link_enabled,
+    "peeringdb_link_enabled": settings.peeringdb_link_enabled,
     "peeringdb_url": _peeringdb_url,
     "custom_css": settings.brand_custom_css.strip(),
 }
