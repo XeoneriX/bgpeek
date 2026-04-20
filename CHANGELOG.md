@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Admin device form: saving any device with `source4` or `source6` set returned a 500. `asyncpg` cannot bind a Pydantic `IPv4Address`/`IPv6Address` to the TEXT columns used for source IPs, so every save with a non-empty source IP failed with `invalid input for query argument ... expected str, got IPv4Address`. `create_device`/`update_device` now serialise the payload with `model_dump(mode="json")`, which coerces IP objects to strings (and is a no-op for the `INET` address column, which accepts both).
 
+### Changed
+
+- `<select>` controls now render a consistent custom chevron positioned with a small gap from the right border, replacing the browser-default arrow which hugged the edge inconsistently across Chrome/Firefox/Safari. Applied to the home page Query type selector.
+
 ## [1.3.1] - 2026-04-19
 
 ### Added
