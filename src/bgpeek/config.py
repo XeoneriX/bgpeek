@@ -256,6 +256,34 @@ class Settings(BaseSettings):
         default=True,
         description="Emit audit_log entries to stdout (via structlog) in addition to the PostgreSQL row. Disable if audit noise on stdout is a problem; the DB row is unaffected.",
     )
+    log_ship_url: str = Field(
+        default="",
+        description="Optional HTTP endpoint that receives a batched copy of every log event. Empty (default) disables shipping; stdout remains the only sink.",
+    )
+    log_ship_format: str = Field(
+        default="ndjson",
+        description="Wire format for log shipping: 'ndjson' (one JSON per line), 'loki' (Loki push API schema), 'elasticsearch' (bulk NDJSON with action lines).",
+    )
+    log_ship_headers: str = Field(
+        default="",
+        description='Optional JSON object of extra HTTP headers to attach to shipping requests, e.g. {"Authorization":"Bearer …"}.',
+    )
+    log_ship_batch_size: int = Field(
+        default=100,
+        description="Maximum number of events flushed in a single HTTP POST.",
+    )
+    log_ship_batch_timeout_sec: float = Field(
+        default=2.0,
+        description="Maximum number of seconds an event waits in the queue before being flushed.",
+    )
+    log_ship_queue_max: int = Field(
+        default=10000,
+        description="Upper bound on in-memory queue size. When full, oldest events are dropped first (never blocks log calls).",
+    )
+    log_ship_timeout_sec: float = Field(
+        default=5.0,
+        description="HTTP timeout for a single shipping request (seconds).",
+    )
 
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")

@@ -28,6 +28,7 @@ from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
 from bgpeek.core.auth import guest_user, optional_auth
 from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
+from bgpeek.core.log_shipper import install_shipper, shutdown_shipper
 from bgpeek.core.logging import configure_logging
 from bgpeek.core.oidc import setup_oidc
 from bgpeek.core.probe import shutdown as shutdown_probes
@@ -279,6 +280,12 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     except Exception:
         log.warning("redis unavailable — cache disabled", exc_info=True)
 
+    # Start HTTP log shipper (no-op unless BGPEEK_LOG_SHIP_URL is set).
+    try:
+        await install_shipper()
+    except Exception:
+        log.warning("log_shipper_startup_failed", exc_info=True)
+
     # Start periodic cleanup
     _cleanup_task = asyncio.create_task(_periodic_cleanup())
 
@@ -292,6 +299,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     await shutdown_webhooks()
     await shutdown_probes()
+    await shutdown_shipper()
     await close_redis()
     await close_pool()
     log.info("bgpeek shutting down")

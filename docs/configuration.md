@@ -253,3 +253,10 @@ BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home","login":"sign in","history":"
 |---|---|---|
 | `BGPEEK_LOG_LEVEL` | `info` | Minimum log level: `debug`, `info`, `warning`, `error`, `critical` |
 | `BGPEEK_LOG_FORMAT` | `console` | Renderer: `console` (human, colourless plain text), `json` (NDJSON, one event per line), `logfmt` (`key=value` pairs) |
+| `BGPEEK_LOG_SHIP_URL` | _(empty)_ | Optional HTTP endpoint that receives batched copies of every structlog event. Empty disables shipping; `stdout` remains the always-live sink regardless |
+| `BGPEEK_LOG_SHIP_FORMAT` | `ndjson` | Wire format: `ndjson` (one JSON per line), `loki` (Loki push schema), `elasticsearch` (bulk NDJSON) |
+| `BGPEEK_LOG_SHIP_HEADERS` | _(empty)_ | JSON object of extra HTTP headers, e.g. `{"Authorization":"Bearer …"}` |
+| `BGPEEK_LOG_SHIP_BATCH_SIZE` | `100` | Events per POST |
+| `BGPEEK_LOG_SHIP_BATCH_TIMEOUT_SEC` | `2.0` | Maximum seconds an event waits in the queue before being flushed |
+| `BGPEEK_LOG_SHIP_QUEUE_MAX` | `10000` | In-memory queue cap; oldest events drop first on overflow (never blocks log calls) |
+| `BGPEEK_LOG_SHIP_TIMEOUT_SEC` | `5.0` | HTTP timeout for one shipping POST |

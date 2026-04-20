@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BGPEEK_LOG_FORMAT` (default `console`) — selects the structlog renderer. Set to `json` for NDJSON (one event per line, ready for Loki / VictoriaLogs / Elasticsearch ingestion) or `logfmt` for `key=value` pairs. The shared processor chain (request-id correlation, ISO-8601 timestamp, log level) is applied regardless of renderer.
 - `BGPEEK_LOG_LEVEL` (default `info`) — minimum log level. Events below the threshold are dropped before rendering.
 - `BGPEEK_AUDIT_STDOUT` (default `true`) — mirrors each `audit_log` row to the structlog stream as a structured `audit` event. The PostgreSQL row remains the source of truth; stdout emission is additive, so external shippers (promtail, Vector, fluent-bit) can index audit alongside app logs without a separate pipeline. Set to `false` to silence audit on stdout if it creates noise.
+- Native HTTP log shipper (`BGPEEK_LOG_SHIP_URL`) — optional second sink that batches structlog events and POSTs them to any HTTP endpoint. Three wire formats (`ndjson` for VictoriaLogs / raw Loki / custom webhook receivers, `loki` for the Loki push API, `elasticsearch` for `/_bulk`). Configurable batch size / timeout / queue cap; on overflow the oldest events are dropped (log calls never block). The shipper is additive: `stdout` remains the always-live sink regardless. Pending events are flushed on shutdown. Part B of the `feedback/2026-04-20-logging-pipeline-*.md` plan; Part C (OTLP exporter) is parked in the backlog.
 
 ### Changed
 

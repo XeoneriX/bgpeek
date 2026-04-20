@@ -21,6 +21,7 @@ import logging
 import structlog
 
 from bgpeek.config import settings
+from bgpeek.core.log_shipper import _shipping_processor
 
 _LEVELS: dict[str, int] = {
     "debug": logging.DEBUG,
@@ -63,8 +64,11 @@ def configure_logging() -> None:
     else:
         renderer = structlog.dev.ConsoleRenderer(colors=False)
 
+    # The shipper processor captures a snapshot of the structured event
+    # *before* the final renderer turns it into a console/json/logfmt string.
+    # It is a no-op when `BGPEEK_LOG_SHIP_URL` is unset.
     structlog.configure(
-        processors=[*shared, renderer],
+        processors=[*shared, _shipping_processor, renderer],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=False,
