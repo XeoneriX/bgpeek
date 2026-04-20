@@ -245,3 +245,11 @@ BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home","login":"sign in","history":"
 | `BGPEEK_TEMPLATES_DIR` | _(built-in)_ | Path to Jinja2 templates (override for custom UI) |
 | `BGPEEK_RESULT_TTL_DAYS` | `7` | How long shared query results are kept (days) |
 | `BGPEEK_AUDIT_TTL_DAYS` | `90` | Audit log retention in days; `0` keeps records forever |
+| `BGPEEK_AUDIT_STDOUT` | `true` | Also emit audit entries to the structlog stream (for Loki/VictoriaLogs/Elastic ingestion). PostgreSQL row is unaffected. |
+
+## Logging
+
+| Variable | Default | Description |
+|---|---|---|
+| `BGPEEK_LOG_LEVEL` | `info` | Minimum log level: `debug`, `info`, `warning`, `error`, `critical` |
+| `BGPEEK_LOG_FORMAT` | `console` | Renderer: `console` (human, colourless plain text), `json` (NDJSON, one event per line), `logfmt` (`key=value` pairs) |

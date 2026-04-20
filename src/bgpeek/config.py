@@ -243,6 +243,20 @@ class Settings(BaseSettings):
         description="Optional CSS string appended to base template style block.",
     )
 
+    # --- Logging ---
+    log_level: str = Field(
+        default="info",
+        description="Minimum log level for structlog output: debug, info, warning, error, critical.",
+    )
+    log_format: str = Field(
+        default="console",
+        description="Log renderer: 'console' (human, default), 'json' (machine-parseable NDJSON), 'logfmt'.",
+    )
+    audit_stdout: bool = Field(
+        default=True,
+        description="Emit audit_log entries to stdout (via structlog) in addition to the PostgreSQL row. Disable if audit noise on stdout is a problem; the DB row is unaffected.",
+    )
+
     # --- Paths ---
     config_dir: Path = Path("/etc/bgpeek")
     static_dir: Path = Path(__file__).parent / "static"

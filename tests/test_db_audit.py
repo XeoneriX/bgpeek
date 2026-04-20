@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import json
+import logging
+from contextlib import redirect_stdout
 from ipaddress import IPv4Address, IPv6Address
 
 import asyncpg
+import pytest
+import structlog
 
+from bgpeek.config import settings
+from bgpeek.core.logging import configure_logging
 from bgpeek.db import audit as crud
 from bgpeek.db import devices as device_crud
 from bgpeek.models.audit import AuditAction, AuditEntryCreate
@@ -218,6 +226,15 @@ async def test_action_enum_string_value(pool: asyncpg.Pool) -> None:
     assert raw == "query"
 
 
+@pytest.fixture(autouse=True)
+def _restore_structlog_level() -> None:
+    """Keep `configure_logging()` calls here from leaking into other test modules."""
+    yield
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(logging.NOTSET),
+    )
+
+
 async def _make_device(pool: asyncpg.Pool, name: str) -> int:
     dev = await device_crud.create_device(
         pool,
@@ -261,6 +278,60 @@ async def test_devices_with_success_history_skips_non_device_actions(
     await crud.log_audit(pool, _entry(action=AuditAction.LOGIN, device_id=None, success=True))
     await crud.log_audit(pool, _entry(device_id=d1, success=True))
     assert await crud.devices_with_success_history(pool) == {d1}
+
+
+async def test_log_audit_mirrors_to_stdout_when_enabled(
+    pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When audit_stdout is on, log_audit emits an `audit` event alongside the PG insert."""
+    monkeypatch.setattr(settings, "log_format", "json")
+    monkeypatch.setattr(settings, "log_level", "info")
+    monkeypatch.setattr(settings, "audit_stdout", True)
+    configure_logging()
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        await crud.log_audit(
+            pool,
+            _entry(
+                action=AuditAction.QUERY,
+                success=True,
+                username="alice",
+                device_name="rt1",
+                query_type="bgp_route",
+                query_target="1.1.1.1/32",
+                runtime_ms=42,
+            ),
+        )
+
+    lines = [line for line in buf.getvalue().splitlines() if line.strip()]
+    assert lines, "expected at least one structlog line on stdout"
+    payload = json.loads(lines[-1])
+    assert payload["event"] == "audit"
+    assert payload["action"] == "query"
+    assert payload["success"] is True
+    assert payload["username"] == "alice"
+    assert payload["device"] == "rt1"
+    assert payload["query_type"] == "bgp_route"
+    assert payload["target"] == "1.1.1.1/32"
+    assert payload["runtime_ms"] == 42
+
+
+async def test_log_audit_suppresses_stdout_when_toggle_off(
+    pool: asyncpg.Pool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With audit_stdout=False, no `audit` event lands on stdout; the PG row still lands."""
+    monkeypatch.setattr(settings, "log_format", "json")
+    monkeypatch.setattr(settings, "log_level", "info")
+    monkeypatch.setattr(settings, "audit_stdout", False)
+    configure_logging()
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        persisted = await crud.log_audit(pool, _entry(action=AuditAction.QUERY, success=True))
+
+    assert persisted.id > 0  # DB insert still happened
+    assert "audit" not in buf.getvalue()
 
 
 async def test_devices_with_success_history_counts_probes(pool: asyncpg.Pool) -> None:

@@ -5,8 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 
 import asyncpg
+import structlog
 
+from bgpeek.config import settings
 from bgpeek.models.audit import AuditAction, AuditEntry, AuditEntryCreate
+
+# Dedicated logger name so downstream shippers can filter by `logger:audit`
+# (or the equivalent) without regex-matching event names.
+_audit_log = structlog.get_logger("audit")
 
 
 async def log_audit(pool: asyncpg.Pool, entry: AuditEntryCreate) -> AuditEntry:
@@ -37,7 +43,26 @@ async def log_audit(pool: asyncpg.Pool, entry: AuditEntryCreate) -> AuditEntry:
         entry.response_bytes,
     )
     assert row is not None
-    return AuditEntry.model_validate(dict(row))
+    persisted = AuditEntry.model_validate(dict(row))
+
+    if settings.audit_stdout:
+        # Mirror the audit row to the standard log stream so external shippers
+        # (Loki, VictoriaLogs, …) can index audit events alongside app logs.
+        # The PG row remains the source of truth for compliance.
+        _audit_log.info(
+            "audit",
+            action=entry.action.value,
+            success=entry.success,
+            username=entry.username,
+            user_role=entry.user_role,
+            source_ip=str(entry.source_ip) if entry.source_ip is not None else None,
+            device=entry.device_name,
+            query_type=entry.query_type,
+            target=entry.query_target,
+            runtime_ms=entry.runtime_ms,
+        )
+
+    return persisted
 
 
 def _build_filter(

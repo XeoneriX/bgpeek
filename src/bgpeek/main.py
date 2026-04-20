@@ -28,6 +28,7 @@ from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
 from bgpeek.core.auth import guest_user, optional_auth
 from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
+from bgpeek.core.logging import configure_logging
 from bgpeek.core.oidc import setup_oidc
 from bgpeek.core.probe import shutdown as shutdown_probes
 from bgpeek.core.redis import close_redis, get_redis, init_redis
@@ -38,6 +39,9 @@ from bgpeek.db.pool import close_pool, get_pool, init_pool
 from bgpeek.db.results import list_results
 from bgpeek.models.user import User, UserRole
 from bgpeek.ui import admin as admin_ui
+
+# Configure structlog renderer (console/json/logfmt) before the first bound logger.
+configure_logging()
 
 log = structlog.get_logger()
 
