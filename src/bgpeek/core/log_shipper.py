@@ -33,6 +33,7 @@ from typing import Any
 
 import httpx
 import structlog
+from prometheus_client import REGISTRY, Counter, Gauge
 
 from bgpeek import __version__
 from bgpeek.config import settings
@@ -42,6 +43,15 @@ log = structlog.get_logger(__name__)
 _USER_AGENT = f"bgpeek/{__version__}"
 
 _shipper: LogShipper | None = None
+
+# Prometheus metrics are created on demand when `install_shipper()` runs, so
+# operators with shipping disabled don't see ghost `bgpeek_log_ship_*` series
+# in /metrics. Set/unset as a unit to keep the lifecycle tidy.
+_queue_depth_gauge: Gauge | None = None
+_events_counter: Counter | None = None
+_dropped_counter: Counter | None = None
+_delivered_counter: Counter | None = None
+_failed_counter: Counter | None = None
 
 
 Formatter = Callable[[Iterable[dict[str, Any]]], tuple[bytes, str]]
@@ -128,7 +138,14 @@ class LogShipper:
 
     def enqueue(self, event: dict[str, Any]) -> None:
         """Add an event to the queue. Never blocks; oldest entry is dropped on overflow."""
+        # `deque(maxlen=N).append` silently drops the oldest item on overflow —
+        # compare against maxlen before append so we can count drops.
+        at_capacity = self._queue.maxlen is not None and len(self._queue) == self._queue.maxlen
         self._queue.append(event)
+        if _events_counter is not None:
+            _events_counter.inc()
+        if at_capacity and _dropped_counter is not None:
+            _dropped_counter.inc()
 
     @property
     def queue_depth(self) -> int:
@@ -180,13 +197,20 @@ class LogShipper:
         try:
             async with httpx.AsyncClient(timeout=self._http_timeout) as client:
                 resp = await client.post(self._url, content=body, headers=headers)
-            if not resp.is_success:
-                _warn_to_stderr(
-                    "log_ship_http_error",
-                    count=len(batch),
-                    status=resp.status_code,
-                )
+            if resp.is_success:
+                if _delivered_counter is not None:
+                    _delivered_counter.inc(len(batch))
+                return
+            if _failed_counter is not None:
+                _failed_counter.inc(len(batch))
+            _warn_to_stderr(
+                "log_ship_http_error",
+                count=len(batch),
+                status=resp.status_code,
+            )
         except Exception as exc:
+            if _failed_counter is not None:
+                _failed_counter.inc(len(batch))
             _warn_to_stderr("log_ship_delivery_failed", count=len(batch), error=str(exc))
 
 
@@ -249,6 +273,7 @@ async def install_shipper() -> None:
         return
     await shipper.start()
     _shipper = shipper
+    _install_metrics(shipper)
     # Visible startup line so operators don't have to guess whether the
     # shipper came up — 5 minutes of pilot debugging that never needed to
     # happen (see feedback/2026-04-20-logging-pipeline-deployed-feedback.md).
@@ -270,7 +295,65 @@ async def shutdown_shipper() -> None:
     pending = _shipper.queue_depth
     await _shipper.shutdown()
     log.info("log_shipper_shutdown", final_flushed=pending)
+    _uninstall_metrics()
     _shipper = None
+
+
+def _install_metrics(shipper: LogShipper) -> None:
+    """Register the log-shipper Prometheus series against the default registry.
+
+    Only called when shipping is actually enabled so operators without a
+    `BGPEEK_LOG_SHIP_URL` don't see perpetually-zero `bgpeek_log_ship_*`
+    series cluttering /metrics. The queue-depth gauge is wired with
+    `set_function` so Prometheus pulls the current value at scrape time —
+    no extra bookkeeping from the hot path.
+    """
+    global _queue_depth_gauge, _events_counter, _dropped_counter
+    global _delivered_counter, _failed_counter
+    if _queue_depth_gauge is not None:
+        return  # idempotent — second install_shipper is a no-op
+    _queue_depth_gauge = Gauge(
+        "bgpeek_log_ship_queue_depth",
+        "Events currently waiting in the log-shipper queue",
+    )
+    _queue_depth_gauge.set_function(lambda: float(shipper.queue_depth))
+    _events_counter = Counter(
+        "bgpeek_log_ship_events_total",
+        "Structlog events accepted into the log-shipper queue",
+    )
+    _dropped_counter = Counter(
+        "bgpeek_log_ship_dropped_total",
+        "Events dropped on queue overflow (oldest-first; endpoint can't keep up)",
+    )
+    _delivered_counter = Counter(
+        "bgpeek_log_ship_delivered_total",
+        "Events successfully POSTed to the shipping endpoint",
+    )
+    _failed_counter = Counter(
+        "bgpeek_log_ship_failed_total",
+        "Events lost because their batch POST failed (non-2xx or transport error)",
+    )
+
+
+def _uninstall_metrics() -> None:
+    """Unregister the log-shipper series on shutdown so re-install is clean."""
+    global _queue_depth_gauge, _events_counter, _dropped_counter
+    global _delivered_counter, _failed_counter
+    for collector in (
+        _queue_depth_gauge,
+        _events_counter,
+        _dropped_counter,
+        _delivered_counter,
+        _failed_counter,
+    ):
+        if collector is not None:
+            with contextlib.suppress(KeyError):
+                REGISTRY.unregister(collector)
+    _queue_depth_gauge = None
+    _events_counter = None
+    _dropped_counter = None
+    _delivered_counter = None
+    _failed_counter = None
 
 
 def _scrub_url(url: str) -> str:

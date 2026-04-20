@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -253,3 +254,127 @@ def test_scrub_url_drops_query_string() -> None:
         "http://vl:9428/insert/jsonline"
     )
     assert _scrub_url("http://vl:9428/") == "http://vl:9428/"
+
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics — conditional registration + counter increments
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def _fresh_metrics() -> None:
+    """Ensure metrics aren't registered from a prior test, and clean up after."""
+    from prometheus_client import REGISTRY
+
+    log_shipper._uninstall_metrics()
+    yield
+    log_shipper._uninstall_metrics()
+    # Safety: if anything slipped, walk the registry for our names.
+    for name in (
+        "bgpeek_log_ship_queue_depth",
+        "bgpeek_log_ship_events_total",
+        "bgpeek_log_ship_dropped_total",
+        "bgpeek_log_ship_delivered_total",
+        "bgpeek_log_ship_failed_total",
+    ):
+        collector = REGISTRY._names_to_collectors.get(name)  # noqa: SLF001
+        if collector is not None:
+            with contextlib.suppress(KeyError):
+                REGISTRY.unregister(collector)
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+async def test_metrics_absent_when_shipping_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With log_ship_url empty, install_shipper is a no-op and no metrics register."""
+    from prometheus_client import REGISTRY
+
+    monkeypatch.setattr(log_shipper.settings, "log_ship_url", "")
+    await log_shipper.install_shipper()
+    assert REGISTRY._names_to_collectors.get("bgpeek_log_ship_queue_depth") is None  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+async def test_metrics_registered_on_install_and_removed_on_shutdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from prometheus_client import REGISTRY
+
+    monkeypatch.setattr(log_shipper.settings, "log_ship_url", "http://example.com/ingest")
+    monkeypatch.setattr(log_shipper.settings, "log_ship_format", "ndjson")
+
+    await log_shipper.install_shipper()
+    for name in (
+        "bgpeek_log_ship_queue_depth",
+        "bgpeek_log_ship_events_total",
+        "bgpeek_log_ship_dropped_total",
+        "bgpeek_log_ship_delivered_total",
+        "bgpeek_log_ship_failed_total",
+    ):
+        assert REGISTRY._names_to_collectors.get(name) is not None, name  # noqa: SLF001
+
+    await log_shipper.shutdown_shipper()
+    for name in (
+        "bgpeek_log_ship_queue_depth",
+        "bgpeek_log_ship_events_total",
+    ):
+        assert REGISTRY._names_to_collectors.get(name) is None, name  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+def test_enqueue_increments_events_counter() -> None:
+    shipper = LogShipper(url="http://x")
+    log_shipper._install_metrics(shipper)
+    before = log_shipper._events_counter._value.get()  # noqa: SLF001
+    shipper.enqueue({"event": "a"})
+    after = log_shipper._events_counter._value.get()  # noqa: SLF001
+    assert after - before == 1
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+def test_enqueue_overflow_increments_dropped_counter() -> None:
+    shipper = LogShipper(url="http://x", queue_max=2)
+    log_shipper._install_metrics(shipper)
+    shipper.enqueue({"n": 1})
+    shipper.enqueue({"n": 2})
+    assert log_shipper._dropped_counter._value.get() == 0  # noqa: SLF001
+    shipper.enqueue({"n": 3})  # overflow
+    assert log_shipper._dropped_counter._value.get() == 1  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+async def test_successful_flush_increments_delivered() -> None:
+    shipper = LogShipper(url="http://example.com/ingest")
+    log_shipper._install_metrics(shipper)
+    mock_client = _http_client_mock(response_status=200)
+    with patch("bgpeek.core.log_shipper.httpx.AsyncClient", return_value=mock_client):
+        await shipper._flush([{"event": "a"}, {"event": "b"}])
+    assert log_shipper._delivered_counter._value.get() == 2  # noqa: SLF001
+    assert log_shipper._failed_counter._value.get() == 0  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+async def test_http_error_increments_failed() -> None:
+    shipper = LogShipper(url="http://example.com/ingest")
+    log_shipper._install_metrics(shipper)
+    mock_client = _http_client_mock(response_status=500)
+    with patch("bgpeek.core.log_shipper.httpx.AsyncClient", return_value=mock_client):
+        await shipper._flush([{"event": "x"}, {"event": "y"}, {"event": "z"}])
+    assert log_shipper._failed_counter._value.get() == 3  # noqa: SLF001
+    assert log_shipper._delivered_counter._value.get() == 0  # noqa: SLF001
+
+
+@pytest.mark.usefixtures("_fresh_metrics")
+async def test_transport_error_increments_failed() -> None:
+    shipper = LogShipper(url="http://example.com/ingest")
+    log_shipper._install_metrics(shipper)
+
+    def _raise(*_: object, **__: object) -> None:
+        raise httpx.ConnectError("boom")
+
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(side_effect=_raise)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("bgpeek.core.log_shipper.httpx.AsyncClient", return_value=mock_client):
+        await shipper._flush([{"event": "x"}])
+    assert log_shipper._failed_counter._value.get() == 1  # noqa: SLF001
