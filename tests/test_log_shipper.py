@@ -244,3 +244,12 @@ def test_parse_headers_invalid_json_returns_empty() -> None:
 
 def test_parse_headers_non_object_returns_empty() -> None:
     assert _parse_headers("[1,2,3]") == {}
+
+
+def test_scrub_url_drops_query_string() -> None:
+    from bgpeek.core.log_shipper import _scrub_url
+
+    assert _scrub_url("http://vl:9428/insert/jsonline?api_key=secret") == (
+        "http://vl:9428/insert/jsonline"
+    )
+    assert _scrub_url("http://vl:9428/") == "http://vl:9428/"

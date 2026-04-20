@@ -32,9 +32,12 @@ from collections.abc import Callable, Iterable, MutableMapping
 from typing import Any
 
 import httpx
+import structlog
 
 from bgpeek import __version__
 from bgpeek.config import settings
+
+log = structlog.get_logger(__name__)
 
 _USER_AGENT = f"bgpeek/{__version__}"
 
@@ -246,6 +249,17 @@ async def install_shipper() -> None:
         return
     await shipper.start()
     _shipper = shipper
+    # Visible startup line so operators don't have to guess whether the
+    # shipper came up — 5 minutes of pilot debugging that never needed to
+    # happen (see feedback/2026-04-20-logging-pipeline-deployed-feedback.md).
+    log.info(
+        "log_shipper_started",
+        url=_scrub_url(shipper._url),
+        format=settings.log_ship_format.lower(),
+        batch_size=shipper._batch_size,
+        batch_timeout=shipper._batch_timeout,
+        queue_max=shipper._queue.maxlen,
+    )
 
 
 async def shutdown_shipper() -> None:
@@ -253,8 +267,15 @@ async def shutdown_shipper() -> None:
     global _shipper
     if _shipper is None:
         return
+    pending = _shipper.queue_depth
     await _shipper.shutdown()
+    log.info("log_shipper_shutdown", final_flushed=pending)
     _shipper = None
+
+
+def _scrub_url(url: str) -> str:
+    """Drop the query string so secrets like `?api_key=` don't land in startup logs."""
+    return url.split("?", 1)[0] if "?" in url else url
 
 
 def _shipping_processor(
