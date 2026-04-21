@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -96,6 +96,15 @@ class Settings(BaseSettings):
 
     # --- i18n ---
     default_lang: str = "en"
+    enabled_languages: str = Field(
+        default="en,ru",
+        description=(
+            "Comma-separated allow-list of language codes to expose. "
+            "Languages outside the list are ignored even if requested via ?lang=, cookie, "
+            "or Accept-Language. Must include `default_lang`. Set to a single code "
+            "(for example `en`) in deployments that want to force one language."
+        ),
+    )
 
     # --- ASN ---
     primary_asn: int | str = Field(
@@ -304,6 +313,52 @@ class Settings(BaseSettings):
         if not normalized.isdigit():
             raise ValueError("primary_asn must contain digits only (for example: 152183)")
         return normalized
+
+    @field_validator("enabled_languages")
+    @classmethod
+    def validate_enabled_languages(cls: type["Settings"], value: str) -> str:
+        """Validate, lowercase-normalise, and dedupe the allow-list. Each token must
+        be a known translation key; we reject unknown codes at startup rather than
+        silently ignoring them, because a typo would otherwise reduce the allow-list
+        to the default_lang fallback without a clear signal.
+        """
+        from bgpeek.core.i18n import TRANSLATIONS
+
+        tokens = [t.strip().lower() for t in value.split(",") if t.strip()]
+        if not tokens:
+            raise ValueError("enabled_languages must contain at least one language code")
+        unknown = [t for t in tokens if t not in TRANSLATIONS]
+        if unknown:
+            known = sorted(TRANSLATIONS)
+            raise ValueError(
+                f"enabled_languages contains unknown code(s) {unknown}; known codes: {known}"
+            )
+        seen: set[str] = set()
+        unique: list[str] = []
+        for tok in tokens:
+            if tok not in seen:
+                seen.add(tok)
+                unique.append(tok)
+        return ",".join(unique)
+
+    @model_validator(mode="after")
+    def validate_default_lang_in_enabled(self) -> "Settings":
+        """`default_lang` must be one of `enabled_languages` or the middleware has
+        no safe fallback when the request can't be mapped to an allow-listed code.
+        """
+        enabled = self.enabled_languages_list
+        if self.default_lang not in enabled:
+            raise ValueError(
+                f"default_lang={self.default_lang!r} is not in enabled_languages="
+                f"{list(enabled)}; add it or change default_lang"
+            )
+        return self
+
+    @property
+    def enabled_languages_list(self) -> tuple[str, ...]:
+        """Parsed ``enabled_languages`` as an ordered tuple (validator has already
+        normalised casing and deduped, so a plain split suffices)."""
+        return tuple(t for t in self.enabled_languages.split(",") if t)
 
 
 settings = Settings()

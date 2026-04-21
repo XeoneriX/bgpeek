@@ -25,6 +25,7 @@ _peeringdb_url = f"https://www.peeringdb.com/asn/{_primary_asn}" if _has_asn els
 templates.env.filters["timeago"] = timeago
 templates.env.filters["annotate_community"] = annotate_community
 templates.env.globals["community_row_color"] = community_row_color
+templates.env.globals["enabled_languages"] = settings.enabled_languages_list
 templates.env.globals["brand"] = {
     "site_name": _brand_site_name,
     "page_titles": settings.brand_page_titles,

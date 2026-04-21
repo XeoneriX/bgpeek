@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
         "site_name": "bgpeek",
@@ -311,6 +313,7 @@ def detect_language(
     cookie: str | None,
     accept_language: str | None,
     default: str,
+    enabled: Collection[str] | None = None,
 ) -> str:
     """Detect language from request context, in priority order.
 
@@ -318,9 +321,16 @@ def detect_language(
     2. ``bgpeek_lang`` cookie
     3. ``Accept-Language`` header (first supported match)
     4. Application default
+
+    ``enabled`` is an optional allow-list (operator-configured). Codes outside
+    the allow-list are ignored at every level, so an operator can serve a
+    single language even to clients sending ``Accept-Language: ru``. Defaults
+    to :data:`SUPPORTED_LANGS` for backward compatibility.
     """
+    allowed = frozenset(enabled) if enabled else SUPPORTED_LANGS
+
     for candidate in (query_param, cookie):
-        if candidate and candidate in SUPPORTED_LANGS:
+        if candidate and candidate in allowed:
             return candidate
 
     if accept_language:
@@ -328,7 +338,11 @@ def detect_language(
             tag = part.split(";")[0].strip().lower()
             # Accept both "ru" and "ru-RU" style tags.
             short = tag[:2]
-            if short in SUPPORTED_LANGS:
+            if short in allowed:
                 return short
 
-    return default if default in SUPPORTED_LANGS else DEFAULT_LANG
+    if default in allowed:
+        return default
+    # Config validation should prevent this, but stay defensive for unit-test
+    # callers that pass a default outside ``enabled``.
+    return DEFAULT_LANG if DEFAULT_LANG in allowed else next(iter(sorted(allowed)))

@@ -27,7 +27,7 @@ from bgpeek.api import query as query_api
 from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
 from bgpeek.core.auth import guest_user, optional_auth
-from bgpeek.core.i18n import SUPPORTED_LANGS, detect_language, get_translations
+from bgpeek.core.i18n import detect_language, get_translations
 from bgpeek.core.log_shipper import install_shipper, shutdown_shipper
 from bgpeek.core.logging import configure_logging
 from bgpeek.core.oidc import setup_oidc
@@ -167,15 +167,24 @@ class I18nMiddleware(BaseHTTPMiddleware):
         query_lang = request.query_params.get("lang")
         cookie_lang = request.cookies.get(_LANG_COOKIE)
         accept_lang = request.headers.get("accept-language")
+        enabled_langs = settings.enabled_languages_list
 
-        lang = detect_language(query_lang, cookie_lang, accept_lang, settings.default_lang)
+        lang = detect_language(
+            query_lang,
+            cookie_lang,
+            accept_lang,
+            settings.default_lang,
+            enabled=enabled_langs,
+        )
         request.state.lang = lang
         request.state.t = get_translations(lang)
 
         response = await call_next(request)
 
         # Persist language choice in cookie when explicitly set via query param.
-        if query_lang and query_lang in SUPPORTED_LANGS:
+        # Gate on the operator allow-list too — a disabled language that slipped
+        # into the URL should not be written back as a cookie.
+        if query_lang and query_lang in enabled_langs:
             response.set_cookie(
                 key=_LANG_COOKIE,
                 value=query_lang,
