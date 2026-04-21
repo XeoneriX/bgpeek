@@ -323,9 +323,9 @@ app = FastAPI(
     description=settings.brand_site_description,
     version=__version__,
     lifespan=lifespan,
-    docs_url="/api/docs" if settings.debug else None,
+    docs_url="/api/docs" if settings.docs_enabled else None,
     redoc_url=None,
-    openapi_url="/api/openapi.json" if settings.debug else None,
+    openapi_url="/api/openapi.json" if settings.docs_enabled else None,
 )
 
 app.add_middleware(SecurityHeadersMiddleware)

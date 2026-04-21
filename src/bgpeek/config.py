@@ -34,6 +34,18 @@ class Settings(BaseSettings):
         description="Resolve hostnames to IPs before querying. When false, only IP addresses accepted.",
     )
 
+    # --- API docs ---
+    docs_enabled: bool = Field(
+        default=True,
+        description=(
+            "Serve the Swagger UI at /api/docs and the OpenAPI schema at "
+            "/api/openapi.json, and render the 'API' link in the main-site header. "
+            "Set to false to return 404 for the docs endpoints AND hide the "
+            "header link — the two must toggle together or prod users hit a "
+            "dead link, and a visible endpoint stays findable for scanners."
+        ),
+    )
+
     # --- Target types ---
     allowed_target_types: str = Field(
         default="ip,cidr,hostname",

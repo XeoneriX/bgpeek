@@ -12,7 +12,9 @@
     </a>
     <div class="flex items-center gap-3">
         <a href="/history" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.history }}</a>
+        {% if docs_enabled %}
         <a href="/api/docs" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.api_docs }}</a>
+        {% endif %}
         {% if user and user.role == 'admin' %}
         <a href="/admin" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.admin }}</a>
         {% endif %}

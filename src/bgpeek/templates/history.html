@@ -12,7 +12,9 @@
     </a>
     <div class="flex items-center gap-3">
         <a href="/" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.new_query }}</a>
+        {% if docs_enabled %}
         <a href="/api/docs" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">{{ t.api_docs }}</a>
+        {% endif %}
         {% if brand.peeringdb_link_enabled %}
         <a href="{{ brand.peeringdb_url }}" target="_blank" rel="noopener noreferrer"
            aria-label="Open PeeringDB"
