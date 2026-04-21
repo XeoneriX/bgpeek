@@ -94,6 +94,10 @@
                    placeholder="2001:db8::1"
                    class="{{ field_class }} font-mono">
         </label>
+        <p id="junos-source-warning" hidden
+           class="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded px-3 py-2">
+            {{ t.admin_devices_junos_source_warning }}
+        </p>
     </fieldset>
 
     <label class="block">
@@ -192,4 +196,24 @@
     <p class="text-xs text-slate-500 dark:text-slate-400">{{ t.admin_devices_test_ssh_no_credential }}</p>
 </div>
 {% endif %}
+
+<script>
+(function () {
+    "use strict";
+    var platform = document.querySelector('select[name="platform"]');
+    var source4 = document.querySelector('input[name="source4"]');
+    var source6 = document.querySelector('input[name="source6"]');
+    var warning = document.getElementById("junos-source-warning");
+    if (!platform || !source4 || !source6 || !warning) return;
+    function update() {
+        var isJunos = platform.value === "juniper_junos";
+        var hasSource = source4.value.trim() !== "" || source6.value.trim() !== "";
+        warning.hidden = !(isJunos && !hasSource);
+    }
+    platform.addEventListener("change", update);
+    source4.addEventListener("input", update);
+    source6.addEventListener("input", update);
+    update();
+})();
+</script>
 {% endblock %}
