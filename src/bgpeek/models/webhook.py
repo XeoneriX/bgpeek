@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
 
 class WebhookEvent(StrEnum):
     """Events that can trigger a webhook."""
@@ -27,8 +29,11 @@ class WebhookBase(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(max_length=255)
-    url: str = Field(max_length=2048)
+    # `min_length=1` was missing — without it a whitespace-only name stripped
+    # down to `""` would still have been accepted. Adding explicitly guards the
+    # invariant we want the form to enforce.
+    name: TrimmedStr = Field(min_length=1, max_length=255)
+    url: TrimmedStr = Field(min_length=1, max_length=2048)
     events: list[WebhookEvent] = Field(min_length=1)
     enabled: bool = True
 
@@ -98,6 +103,7 @@ def validate_webhook_delivery_target(url: str) -> None:
 class WebhookCreate(WebhookBase):
     """Payload for creating a new webhook."""
 
+    # `secret` is signing material — never stripped (see CredentialBase.password).
     secret: str | None = Field(default=None, max_length=255)
 
     @field_validator("url")
@@ -112,8 +118,8 @@ class WebhookUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, max_length=255)
-    url: str | None = Field(default=None, max_length=2048)
+    name: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    url: TrimmedOptStr = Field(default=None, min_length=1, max_length=2048)
     events: list[WebhookEvent] | None = Field(default=None, min_length=1)
     enabled: bool | None = None
     secret: str | None = Field(default=None, max_length=255)

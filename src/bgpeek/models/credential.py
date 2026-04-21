@@ -6,15 +6,20 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
 
 class CredentialBase(BaseModel):
     """Fields shared by create / read variants."""
 
-    name: str = Field(min_length=1, max_length=255)
-    description: str = ""
+    name: TrimmedStr = Field(min_length=1, max_length=255)
+    description: TrimmedStr = ""
     auth_type: str = Field(default="key", pattern=r"^(key|password|key\+password)$")
-    username: str = Field(min_length=1, max_length=255)
-    key_name: str | None = None
+    username: TrimmedStr = Field(min_length=1, max_length=255)
+    key_name: TrimmedOptStr = None
+    # `password` is intentionally *not* trimmed — leading/trailing whitespace
+    # can legitimately be part of a stored secret; silently stripping could
+    # lock an operator out of a router.
     password: str | None = None
 
     @field_validator("key_name")
@@ -36,11 +41,12 @@ class CredentialUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=1, max_length=255)
-    description: str | None = None
+    name: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    description: TrimmedOptStr = None
     auth_type: str | None = Field(default=None, pattern=r"^(key|password|key\+password)$")
-    username: str | None = Field(default=None, min_length=1, max_length=255)
-    key_name: str | None = None
+    username: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    key_name: TrimmedOptStr = None
+    # See CredentialBase.password — preserved verbatim on purpose.
     password: str | None = None
 
     @field_validator("key_name")

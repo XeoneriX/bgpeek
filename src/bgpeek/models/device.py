@@ -7,19 +7,21 @@ from ipaddress import IPv4Address, IPv6Address
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
 IPAddress = IPv4Address | IPv6Address
 
 
 class DeviceBase(BaseModel):
     """Fields shared by create / read variants."""
 
-    name: str = Field(min_length=1, max_length=255)
+    name: TrimmedStr = Field(min_length=1, max_length=255)
     address: IPAddress
     port: int = Field(default=22, ge=1, le=65535)
-    platform: str = Field(min_length=1, max_length=64)
-    description: str | None = None
-    location: str | None = None
-    region: str | None = None
+    platform: TrimmedStr = Field(min_length=1, max_length=64)
+    description: TrimmedOptStr = None
+    location: TrimmedOptStr = None
+    region: TrimmedOptStr = None
     enabled: bool = True
     restricted: bool = False
     credential_id: int | None = None
@@ -36,13 +38,13 @@ class DeviceUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = Field(default=None, min_length=1, max_length=255)
+    name: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
     address: IPAddress | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
-    platform: str | None = Field(default=None, min_length=1, max_length=64)
-    description: str | None = None
-    location: str | None = None
-    region: str | None = None
+    platform: TrimmedOptStr = Field(default=None, min_length=1, max_length=64)
+    description: TrimmedOptStr = None
+    location: TrimmedOptStr = None
+    region: TrimmedOptStr = None
     enabled: bool | None = None
     restricted: bool | None = None
     credential_id: int | None = None

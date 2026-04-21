@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
 
 class UserRole(StrEnum):
     """User privilege levels."""
@@ -20,8 +22,8 @@ class UserRole(StrEnum):
 class UserBase(BaseModel):
     """Fields shared by create / read variants."""
 
-    username: str = Field(min_length=1, max_length=255)
-    email: str | None = None
+    username: TrimmedStr = Field(min_length=1, max_length=255)
+    email: TrimmedOptStr = None
     role: UserRole = UserRole.PUBLIC
     enabled: bool = True
 
@@ -29,6 +31,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Payload for creating a new API-key user."""
 
+    # `api_key` is a shared secret — keep exactly what the caller sent, even
+    # if it has incidental whitespace. Length constraint already blocks "   ".
     api_key: str = Field(min_length=32, max_length=128)
 
 
@@ -37,8 +41,8 @@ class UserUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    username: str | None = Field(default=None, min_length=1, max_length=255)
-    email: str | None = None
+    username: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    email: TrimmedOptStr = None
     role: UserRole | None = None
     enabled: bool | None = None
 
@@ -48,9 +52,11 @@ class UserCreateLocal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    username: str = Field(min_length=1, max_length=255)
+    username: TrimmedStr = Field(min_length=1, max_length=255)
+    # Passwords are preserved verbatim; silently stripping whitespace could
+    # desynchronise the stored hash from what the user types at the login form.
     password: str = Field(min_length=8, max_length=128)
-    email: str | None = None
+    email: TrimmedOptStr = None
     role: UserRole = UserRole.PUBLIC
 
 
