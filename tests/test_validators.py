@@ -241,21 +241,21 @@ def test_validate_target_accepts_bare_host_by_default(value: str) -> None:
     ["8.8.8.8", "8.8.8.8/32", "2001:4860:4860::8888", "2001:4860:4860::8888/128"],
 )
 def test_validate_target_rejects_bare_host_when_flag_off(value: str) -> None:
-    """When accept_bare_ip_lookup=False, host addresses are treated like any
+    """When accept_bare_ip=False, host addresses are treated like any
     explicit prefix and rejected by the cutoff. Pre-v1.3.2 behavior."""
     with pytest.raises(TargetValidationError) as excinfo:
-        validate_target(value, accept_bare_ip_lookup=False)
+        validate_target(value, accept_bare_ip=False)
     assert "too specific" in excinfo.value.reason
 
 
 def test_validate_target_flag_does_not_bypass_bogon_or_default() -> None:
-    """accept_bare_ip_lookup only affects the prefix-length check —
+    """accept_bare_ip only affects the prefix-length check —
     bogon/default/unspecified validation still applies."""
     with pytest.raises(TargetValidationError) as excinfo:
-        validate_target("10.0.0.1", accept_bare_ip_lookup=True)
+        validate_target("10.0.0.1", accept_bare_ip=True)
     assert "bogon" in excinfo.value.reason
     with pytest.raises(TargetValidationError) as excinfo:
-        validate_target("0.0.0.0", accept_bare_ip_lookup=True)  # noqa: S104
+        validate_target("0.0.0.0", accept_bare_ip=True)  # noqa: S104
     assert "unspecified" in excinfo.value.reason
 
 
@@ -263,7 +263,7 @@ def test_validate_target_flag_does_not_affect_explicit_prefixes() -> None:
     """An explicit /25 is still rejected even with the flag on — only bare
     hosts (/32, /128) are exempt from the cutoff."""
     with pytest.raises(TargetValidationError):
-        validate_target("8.8.8.0/25", accept_bare_ip_lookup=True)
+        validate_target("8.8.8.0/25", accept_bare_ip=True)
 
 
 @pytest.mark.parametrize(

@@ -66,7 +66,20 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | `BGPEEK_PUBLIC_OUTPUT_LEVEL` | `restricted` | Output detail for public/guest users: `restricted` (hide communities/LP/MED, mask RFC1918), `standard` (all parsed fields, no raw), `full` (same as NOC) |
 | `BGPEEK_MAX_PREFIX_V4` | `24` | Longest IPv4 prefix accepted at validation and kept in public output. Range 8–32. Raise to expose more-specifics (e.g. `27`) if your threat model allows it. Privileged roles bypass the output filter but input validation still applies. |
 | `BGPEEK_MAX_PREFIX_V6` | `48` | Longest IPv6 prefix accepted at validation and kept in public output. Range 16–128. |
-| `BGPEEK_ACCEPT_BARE_IP_LOOKUP` | `true` | Accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match; the output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict rejection. |
+| `BGPEEK_ACCEPT_BARE_IP` | `true` | Accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match; the output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict rejection. See [Bare-IP lookup and the existence-oracle consideration](#bare-ip-lookup-and-the-existence-oracle-consideration) for a privacy note. |
+
+#### Bare-IP lookup and the existence-oracle consideration
+
+When `BGPEEK_MAX_PREFIX_V4` / `BGPEEK_MAX_PREFIX_V6` are configured as a **privacy boundary** — i.e. used to hide the existence of customer /25–/32 allocations from public callers, not just as generic input hygiene — bare-IP BGP queries can act as an existence oracle. A public caller can distinguish two cases:
+
+- Target has no covering BGP route in the table → response is empty.
+- Target is covered by a prefix more specific than the cutoff → response is filtered (`lpm_hidden: true`), confirming that a redacted covering prefix exists.
+
+Iterated over a hit-list of IP addresses this yields a map of which targets are covered by hidden prefixes and which are not, even though the prefix contents themselves remain filtered.
+
+If your deployment relies on `BGPEEK_MAX_PREFIX_V4/V6` as a privacy mechanism (rather than only as a UX / output-tidiness control), set `BGPEEK_ACCEPT_BARE_IP=false`. Bare addresses are then rejected at the input stage and the oracle is closed — at the cost of the "type an IP, get the covering route" UX convenience.
+
+Deployments that treat `BGPEEK_MAX_PREFIX_V4/V6` as UX hygiene — including the typical hyperglass-replacement use case, own-network looking glasses, and operators who do not consider the length of their own customer prefixes to be sensitive — are unaffected and should keep the default `true`.
 
 ### LDAP
 

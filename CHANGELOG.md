@@ -9,12 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `BGPEEK_ACCEPT_BARE_IP_LOOKUP` (default `true`) — accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match and returns whichever covering prefix exists. The output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict behaviour.
+- `BGPEEK_ACCEPT_BARE_IP` (default `true`) — accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match and returns whichever covering prefix exists. The output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict behaviour. See `docs/configuration.md` for a privacy note on the existence-oracle consideration.
 - UI hint when LPM match is hidden: if a bare-IP lookup resolves to a prefix more specific than the public cutoff, the result view now shows "Match hidden at your output level" instead of a silent empty result. Privileged roles (admin/NOC) still see the full entry.
 
 ### Fixed
 
 - Bare IPv4 and IPv6 addresses are no longer rejected as "prefix too specific" at the input stage. This matched the behaviour of every other Looking Glass (hyperglass, alice-lg, vendor-native LGs) and blocked the common NetOps workflow of "I have an address, show me its BGP route." The security invariant — no /25+ routes visible to unprivileged roles — is preserved by the existing output filter.
+- Bare-IP BGP lookups no longer return empty on vendors whose standard BGP-by-prefix command is exact-match. A new platform-aware dispatch layer in `core/commands.py` routes bare-IP queries through a vendor-specific LPM command:
+  - **6WIND VSR**: `show bgp ipv4 prefix <IP>` / `show bgp ipv6 prefix <IP>` is exact-match; bare addresses were being treated as `/32` or `/128` with no covering route in the table. The dispatcher now emits `show bgp ipv4 ip <IP>` / `show bgp ipv6 ip <IP>`, which perform longest-prefix-match (thanks @hcaldicott for the 6WIND repro).
+  - **Juniper Junos**: `show route … <target> exact detail` likewise forces strict prefix match; bare addresses are now dispatched to `show route … <target> best detail`, which drops `exact` to enable LPM and pins the result to a single winner (matters under ECMP).
+  Explicit prefixes continue to use the standard exact-match template. Other vendors (Cisco IOS / IOS-XE / IOS-XR, Arista EOS, Huawei VRP) are unaffected because their standard BGP commands already do LPM on bare IPs.
 
 ## [1.4.0] - 2026-04-23
 

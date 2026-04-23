@@ -237,7 +237,7 @@ address (`8.8.8.8`, `2001:4860:4860::8888`). Bare addresses trigger a
 longest-prefix-match on the router and return whichever covering prefix exists.
 If the matched prefix is more-specific than the cutoff, it is still stripped
 from the public response and `lpm_hidden: true` is set on the response so
-clients can render a helpful hint. Set `BGPEEK_ACCEPT_BARE_IP_LOOKUP=false` to
+clients can render a helpful hint. Set `BGPEEK_ACCEPT_BARE_IP=false` to
 reject bare addresses at the input stage instead.
 
 Hostname targets are automatically resolved to IP addresses before the query is

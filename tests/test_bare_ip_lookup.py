@@ -16,8 +16,8 @@ from bgpeek.core.validators import (
 from bgpeek.models.query import QueryResponse, QueryType
 
 
-def test_setting_accept_bare_ip_lookup_defaults_true() -> None:
-    assert Settings().accept_bare_ip_lookup is True
+def test_setting_accept_bare_ip_defaults_true() -> None:
+    assert Settings().accept_bare_ip is True
 
 
 def test_is_host_lookup_v4() -> None:
@@ -56,7 +56,7 @@ def test_explicit_slash_32_treated_as_host_lookup() -> None:
 
 def test_flag_off_restores_strict_rejection() -> None:
     with pytest.raises(TargetValidationError) as excinfo:
-        validate_target("8.8.8.8", accept_bare_ip_lookup=False)
+        validate_target("8.8.8.8", accept_bare_ip=False)
     assert "too specific" in excinfo.value.reason
 
 

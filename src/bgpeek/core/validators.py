@@ -158,17 +158,17 @@ def validate_target(
     *,
     max_v4: int = DEFAULT_MAX_PREFIX_V4,
     max_v6: int = DEFAULT_MAX_PREFIX_V6,
-    accept_bare_ip_lookup: bool = True,
+    accept_bare_ip: bool = True,
 ) -> IPv4Network | IPv6Network:
     """Parse and validate a query target. Raises TargetValidationError on failure.
 
-    When `accept_bare_ip_lookup` is True (default), bare host addresses
+    When `accept_bare_ip` is True (default), bare host addresses
     (/32, /128) bypass the prefix-length check — they are LPM lookup intents,
     not explicit prefix selections. The output filter still enforces the
     cutoff on whatever the router returns, so the `BGPEEK_MAX_PREFIX_V4/V6`
     invariant holds at the response level.
 
-    When `accept_bare_ip_lookup` is False, host addresses are treated like any
+    When `accept_bare_ip` is False, host addresses are treated like any
     other prefix and rejected if longer than `max_v4`/`max_v6` — this restores
     the pre-v1.3.2 strict behavior for operators who prefer it.
     """
@@ -192,7 +192,7 @@ def validate_target(
             "IPv6 target must be within Global Unicast range (2000::/3)", value
         )
 
-    host_lookup_bypass = accept_bare_ip_lookup and is_host_lookup(network)
+    host_lookup_bypass = accept_bare_ip and is_host_lookup(network)
     if not host_lookup_bypass and prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6):
         raise TargetValidationError("prefix too specific", value)
 

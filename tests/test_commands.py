@@ -88,6 +88,82 @@ def test_sixwind_os_bgp_v6_command() -> None:
     assert cmd == "show bgp ipv6 prefix 2001:db8::/48"
 
 
+# ---- Bare-IP BGP lookup (vendor-aware LPM dispatch) ----
+
+
+def test_sixwind_os_bare_ipv4_uses_ip_lookup() -> None:
+    # 6WIND ``prefix`` is exact-match; ``ip`` is the LPM/covering-route command.
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.1")
+    assert cmd == "show bgp ipv4 ip 1.1.1.1"
+
+
+def test_sixwind_os_bare_ipv6_uses_ip_lookup() -> None:
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "2001:4860:4860::8888")
+    assert cmd == "show bgp ipv6 ip 2001:4860:4860::8888"
+
+
+def test_sixwind_os_explicit_prefix_keeps_prefix_command() -> None:
+    # Only bare host addresses route to the LPM override. Explicit prefixes
+    # (including /32 and /128) use the standard ``prefix`` template.
+    assert (
+        build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.0/24")
+        == "show bgp ipv4 prefix 1.1.1.0/24"
+    )
+    assert (
+        build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.1/32")
+        == "show bgp ipv4 prefix 1.1.1.1/32"
+    )
+
+
+def test_sixwind_os_bare_ip_ping_unaffected() -> None:
+    # The LPM override only applies to BGP_ROUTE; ping/traceroute must still
+    # use the standard ``cmd ping`` template with the bare target.
+    assert build_command("sixwind_os", QueryType.PING, "1.1.1.1") == "cmd ping 1.1.1.1 count 6"
+
+
+def test_junos_bare_ipv4_drops_exact_uses_best() -> None:
+    # Junos `exact` forces strict prefix match (same class of bug as 6WIND
+    # `prefix`). For a bare host address we drop `exact` and pin to `best`
+    # so ECMP groups collapse to a single covering route.
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "1.1.1.1")
+    assert cmd == "show route protocol bgp table inet.0 1.1.1.1 best detail"
+
+
+def test_junos_bare_ipv6_drops_exact_uses_best() -> None:
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "2001:4860:4860::8888")
+    assert cmd == "show route protocol bgp table inet6.0 2001:4860:4860::8888 best detail"
+
+
+def test_junos_explicit_prefix_keeps_exact_detail() -> None:
+    # Explicit prefixes continue to use `exact detail` — we want exact-match
+    # semantics when the operator explicitly types a prefix.
+    assert (
+        build_command("juniper_junos", QueryType.BGP_ROUTE, "1.1.1.0/24")
+        == "show route protocol bgp table inet.0 1.1.1.0/24 exact detail"
+    )
+    assert (
+        build_command("juniper_junos", QueryType.BGP_ROUTE, "2001:db8::/32")
+        == "show route protocol bgp table inet6.0 2001:db8::/32 exact detail"
+    )
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [
+        ("cisco_ios", "show bgp ipv4 unicast 1.1.1.1"),
+        ("cisco_xe", "show bgp ipv4 unicast 1.1.1.1"),
+        ("cisco_xr", "show bgp ipv4 unicast 1.1.1.1"),
+        ("arista_eos", "show ip bgp 1.1.1.1"),
+        ("huawei", "display bgp routing-table 1.1.1.1"),
+    ],
+)
+def test_other_platforms_bare_ip_unchanged(platform: str, expected: str) -> None:
+    # Platforms without an LPM override fall back to ``_COMMAND_TABLE``.
+    # This test guards against accidental dispatch changes for vendors whose
+    # standard BGP commands already do LPM on a bare IP (Cisco, Arista, Huawei).
+    assert build_command(platform, QueryType.BGP_ROUTE, "1.1.1.1") == expected
+
+
 # --- Source-IP injection ------------------------------------------------------
 
 

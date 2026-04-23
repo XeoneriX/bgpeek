@@ -119,7 +119,7 @@ async def execute_query(
                 effective_target,
                 max_v4=settings.max_prefix_v4,
                 max_v6=settings.max_prefix_v6,
-                accept_bare_ip_lookup=settings.accept_bare_ip_lookup,
+                accept_bare_ip=settings.accept_bare_ip,
             )
         else:
             # ping/traceroute: always reject targets that are meaningless
@@ -267,7 +267,7 @@ async def execute_query(
             # LPM match was more-specific than the cutoff, the filter will
             # have stripped every route block. Signal this so the UI can
             # show a clear hint instead of a silent empty result.
-            if settings.accept_bare_ip_lookup and has_any_prefix(cleaned_output):
+            if settings.accept_bare_ip and has_any_prefix(cleaned_output):
                 try:
                     target_net = parse_target(effective_target)
                     target_is_host = is_host_lookup(target_net)
