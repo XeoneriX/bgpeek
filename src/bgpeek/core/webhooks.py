@@ -19,7 +19,7 @@ from bgpeek.models.webhook import (
     Webhook,
     WebhookEvent,
     WebhookPayload,
-    validate_webhook_delivery_target,
+    resolve_and_pin_webhook_target,
 )
 
 log = structlog.get_logger(__name__)
@@ -41,7 +41,7 @@ def _sign_payload(body: bytes, secret: str) -> str:
 async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
     """POST the payload to a single webhook URL with one retry on failure."""
     try:
-        validate_webhook_delivery_target(webhook.url)
+        pinned_url, original_host = resolve_and_pin_webhook_target(webhook.url)
     except ValueError as exc:
         log.warning(
             "webhook_target_blocked",
@@ -55,14 +55,23 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
         "Content-Type": "application/json",
         "User-Agent": _USER_AGENT,
         "X-Webhook-Event": event.value,
+        # Preserve virtual-host routing on the receiver side; httpx would
+        # otherwise send Host: <ip> for the pinned URL.
+        "Host": original_host,
     }
     if webhook.secret:
         headers["X-Webhook-Signature"] = _sign_payload(body, webhook.secret)
 
+    # For HTTPS, force SNI + certificate verification to match the original
+    # hostname even though the URL now carries an IP literal.
+    extensions: dict[str, Any] = {"sni_hostname": original_host}
+
     for attempt in range(_MAX_RETRIES + 1):
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.post(webhook.url, content=body, headers=headers)
+                resp = await client.post(
+                    pinned_url, content=body, headers=headers, extensions=extensions
+                )
             if resp.is_success:
                 log.debug(
                     "webhook_delivered",
@@ -129,7 +138,7 @@ async def shutdown() -> None:
 async def send_test_payload(webhook: Webhook) -> bool:
     """Send a test payload to a webhook. Returns True on 2xx response."""
     try:
-        validate_webhook_delivery_target(webhook.url)
+        pinned_url, original_host = resolve_and_pin_webhook_target(webhook.url)
     except ValueError as exc:
         log.warning("webhook_test_target_blocked", webhook=webhook.name, reason=str(exc))
         return False
@@ -145,13 +154,18 @@ async def send_test_payload(webhook: Webhook) -> bool:
         "Content-Type": "application/json",
         "User-Agent": _USER_AGENT,
         "X-Webhook-Event": "test",
+        "Host": original_host,
     }
     if webhook.secret:
         headers["X-Webhook-Signature"] = _sign_payload(body, webhook.secret)
 
+    extensions: dict[str, Any] = {"sni_hostname": original_host}
+
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.post(webhook.url, content=body, headers=headers)
+            resp = await client.post(
+                pinned_url, content=body, headers=headers, extensions=extensions
+            )
         return resp.is_success
     except Exception:
         log.warning("webhook_test_failed", webhook=webhook.name, exc_info=True)

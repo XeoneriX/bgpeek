@@ -222,7 +222,7 @@ async def test_dispatch_skips_blocked_webhook_target() -> None:
         patch("bgpeek.core.webhooks.get_pool"),
         patch("bgpeek.core.webhooks.list_webhooks_for_event", new_callable=AsyncMock) as mock_list,
         patch(
-            "bgpeek.core.webhooks.validate_webhook_delivery_target",
+            "bgpeek.core.webhooks.resolve_and_pin_webhook_target",
             side_effect=ValueError("blocked target"),
         ),
         patch("bgpeek.core.webhooks.httpx.AsyncClient") as mock_client_cls,
@@ -330,7 +330,7 @@ async def test_send_test_payload_blocked_target_returns_false() -> None:
 
     with (
         patch(
-            "bgpeek.core.webhooks.validate_webhook_delivery_target",
+            "bgpeek.core.webhooks.resolve_and_pin_webhook_target",
             side_effect=ValueError("blocked target"),
         ),
         patch("bgpeek.core.webhooks.httpx.AsyncClient") as mock_client_cls,
