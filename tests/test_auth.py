@@ -255,6 +255,29 @@ class TestCookieAuth:
             resp = client.get("/unified")
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
+    def test_revoked_cookie_returns_401(self) -> None:
+        """A syntactically-valid but server-side-revoked JWT must be rejected.
+        Without this check, logout would clear the cookie but the token would
+        still authenticate anyone who captured it pre-logout.
+        """
+        from bgpeek.core.jwt import create_token
+
+        token = create_token(_LOCAL_USER.id, _LOCAL_USER.username, _LOCAL_USER.role.value)
+        app = _build_app()
+        with (
+            _patch_pool(),
+            _patch_user_by_id(_LOCAL_USER),
+            patch(
+                "bgpeek.core.auth.jwt_revoke.is_revoked",
+                new=AsyncMock(return_value=True),
+            ),
+        ):
+            client = TestClient(app)
+            client.cookies.set(_COOKIE_NAME, token)
+            resp = client.get("/unified")
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+        assert "revoked" in resp.json()["detail"].lower()
+
     def test_optional_auth_with_valid_cookie(self) -> None:
         from bgpeek.core.jwt import create_token
 
@@ -395,3 +418,63 @@ class TestWebLogin:
         # Cookie should be cleared (max-age=0 or deleted)
         cookie_header = resp.headers.get("set-cookie", "")
         assert _COOKIE_NAME in cookie_header
+
+    def test_logout_revokes_current_jwt(self) -> None:
+        """A valid cookie on logout must be server-side revoked so anyone who
+        captured it pre-logout can't keep using it until natural expiry."""
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.core.jwt import create_token
+
+        app = FastAPI()
+        app.include_router(auth_router)
+        token = create_token(1, "alice", "admin")
+        with (
+            self._patch_api_pool(),
+            self._patch_log_audit(),
+            patch("bgpeek.api.auth.revoke_jwt", new_callable=AsyncMock) as revoke_spy,
+        ):
+            client = TestClient(app, follow_redirects=False)
+            client.cookies.set(_COOKIE_NAME, token)
+            resp = client.post("/auth/logout")
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        # revoke called once with the cookie's jti and a positive TTL
+        # (remaining lifetime of the fresh token).
+        revoke_spy.assert_awaited_once()
+        jti_arg, ttl_arg = revoke_spy.await_args.args
+        assert isinstance(jti_arg, str)
+        assert len(jti_arg) >= 16
+        assert ttl_arg > 0
+
+    def test_logout_without_cookie_does_not_call_revoke(self) -> None:
+        """No cookie → no token → no revoke call (nothing to revoke)."""
+        from bgpeek.api.auth import router as auth_router
+
+        app = FastAPI()
+        app.include_router(auth_router)
+        with (
+            self._patch_api_pool(),
+            self._patch_log_audit(),
+            patch("bgpeek.api.auth.revoke_jwt", new_callable=AsyncMock) as revoke_spy,
+        ):
+            client = TestClient(app, follow_redirects=False)
+            resp = client.post("/auth/logout")
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        revoke_spy.assert_not_awaited()
+
+    def test_logout_with_expired_cookie_does_not_raise(self) -> None:
+        """An expired or tampered cookie on logout must not 500 — logout is a
+        user-initiated action and must always succeed."""
+        from bgpeek.api.auth import router as auth_router
+
+        app = FastAPI()
+        app.include_router(auth_router)
+        with (
+            self._patch_api_pool(),
+            self._patch_log_audit(),
+            patch("bgpeek.api.auth.revoke_jwt", new_callable=AsyncMock) as revoke_spy,
+        ):
+            client = TestClient(app, follow_redirects=False)
+            client.cookies.set(_COOKIE_NAME, "not.a.valid.jwt")
+            resp = client.post("/auth/logout")
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        revoke_spy.assert_not_awaited()

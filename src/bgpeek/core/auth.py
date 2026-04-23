@@ -8,6 +8,7 @@ from typing import Any
 import jwt as pyjwt
 from fastapi import Cookie, Depends, Header, HTTPException, status
 
+from bgpeek.core import jwt_revoke
 from bgpeek.core.jwt import decode_token
 from bgpeek.db import users as user_crud
 from bgpeek.db.pool import get_pool
@@ -46,6 +47,16 @@ async def _resolve_jwt(token: str) -> User:
         raise HTTPException(  # noqa: B904
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid or expired JWT token",
+        )
+    # Server-side revocation check: `/auth/logout` puts a token's `jti` on a
+    # Redis blocklist for the remainder of its lifetime. Without this, the
+    # cookie would be cleared client-side but the JWT itself would keep
+    # working for anyone who captured it before logout.
+    jti = payload.get("jti")
+    if isinstance(jti, str) and await jwt_revoke.is_revoked(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="token has been revoked",
         )
     user_id = int(str(payload["sub"]))
     user = await user_crud.get_user_by_id(get_pool(), user_id)

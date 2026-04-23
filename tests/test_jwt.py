@@ -54,3 +54,15 @@ def test_token_contains_exp_claim() -> None:
     payload = decode_token(token)
     assert isinstance(payload["exp"], int)
     assert payload["exp"] > time.time()
+
+
+def test_token_contains_unique_jti() -> None:
+    """Each mint carries its own ``jti`` so server-side revocation can target
+    one session without kicking out other concurrent sessions."""
+    t1 = create_token(1, "alice", "noc")
+    t2 = create_token(1, "alice", "noc")
+    p1 = decode_token(t1)
+    p2 = decode_token(t2)
+    assert isinstance(p1["jti"], str)
+    assert len(p1["jti"]) >= 16
+    assert p1["jti"] != p2["jti"]

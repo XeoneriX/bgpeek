@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import time
+
 import asyncpg
+import jwt as pyjwt
 import structlog
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from bgpeek.config import settings
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
 from bgpeek.core.auth import authenticate, require_role
-from bgpeek.core.jwt import create_token
+from bgpeek.core.jwt import create_token, decode_token
+from bgpeek.core.jwt_revoke import revoke as revoke_jwt
 from bgpeek.core.ldap import authenticate_ldap
 from bgpeek.core.oidc import extract_role_from_token, get_oidc_client
 from bgpeek.core.rate_limit import rate_limit_login
@@ -147,8 +151,18 @@ async def login_submit(
 
 
 @router.post("/auth/logout")
-async def logout(request: Request) -> RedirectResponse:
-    """Clear the auth cookie and redirect to login or main page."""
+async def logout(
+    request: Request,
+    bgpeek_token: str | None = Cookie(default=None),  # noqa: B008
+) -> RedirectResponse:
+    """Clear the auth cookie, revoke the JWT server-side, and redirect.
+
+    Without the revocation step, clearing the cookie only logs the current
+    browser tab out — the JWT itself stays valid until ``exp`` (up to
+    ``jwt_expire_minutes`` minutes), so anyone who captured it pre-logout
+    could keep using it. Revocation writes the token's ``jti`` to Redis with
+    a TTL equal to the token's remaining lifetime.
+    """
     # Best-effort: pull the user out of the cookie if present so the audit row
     # carries who logged out. The cookie middleware doesn't run on POST
     # bodies, so we reach into `request.state` where the auth middleware
@@ -163,6 +177,21 @@ async def logout(request: Request) -> RedirectResponse:
             **request_ctx(request),
         ),
     )
+
+    # Decode the cookie to pull out ``jti`` + ``exp`` for revocation. An
+    # already-expired or invalid token is a no-op — there's nothing left to
+    # revoke. We do NOT want logout to fail the request on a bad cookie.
+    if bgpeek_token:
+        try:
+            payload = decode_token(bgpeek_token)
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if isinstance(jti, str) and isinstance(exp, int):
+                remaining = exp - int(time.time())
+                await revoke_jwt(jti, remaining)
+        except pyjwt.InvalidTokenError:
+            pass  # expired or tampered — nothing to revoke
+
     url = "/auth/login" if settings.access_mode in ("closed", "guest") else "/"
     response = RedirectResponse(url=url, status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(
