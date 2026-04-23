@@ -787,8 +787,10 @@ def test_devices_edit_form_shows_test_ssh_when_cred_set() -> None:
 
     assert response.status_code == 200
     assert "test-ssh-btn" in response.text
-    # The fetch target wires in the credential and device IDs
-    assert "bgpeekTestSSH(7, 1)" in response.text
+    # The fetch target wires in the credential and device IDs via data-* attributes
+    # (the external admin-devices-form.js reads them on click).
+    assert 'data-cred-id="7"' in response.text
+    assert 'data-device-id="1"' in response.text
 
 
 def test_devices_edit_form_shows_hint_without_credential() -> None:
@@ -840,9 +842,9 @@ def test_devices_new_form_save_button_has_loading_attribute() -> None:
 
     assert response.status_code == 200
     assert 'data-loading-text="Saving…"' in response.text
-    # And the loader IIFE is wired into the base template once.
-    assert "data-loading-text" in response.text
-    assert "btn.dataset.loadingText" in response.text
+    # The loader lives in an external JS file referenced from the admin base
+    # template (CSP-safe — `script-src 'self'` blocks inline blocks).
+    assert "/static/js/admin-base.js" in response.text
 
 
 def test_devices_new_form_includes_junos_source_warning() -> None:
