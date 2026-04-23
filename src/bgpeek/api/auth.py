@@ -155,7 +155,7 @@ async def login_submit(
     if user is None:
         log.info("web login failed", username=username)
         csrf_token, signed_token = issue_csrf_token(csrf_protect)
-        response = templates.TemplateResponse(
+        login_response = templates.TemplateResponse(
             request=request,
             name="login.html",
             context={
@@ -168,8 +168,8 @@ async def login_submit(
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-        set_csrf_cookie(csrf_protect, response, signed_token)
-        return response
+        set_csrf_cookie(csrf_protect, login_response, signed_token)
+        return login_response
 
     # Update last_login_at
     await get_pool().execute(
@@ -180,8 +180,8 @@ async def login_submit(
     token = create_token(user.id, user.username, user.role.value)
     max_age = settings.jwt_expire_minutes * 60
 
-    response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(
+    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    redirect_response.set_cookie(
         key=_COOKIE_NAME,
         value=token,
         httponly=True,
@@ -198,7 +198,7 @@ async def login_submit(
         {"user_id": user.id, "username": user.username, "method": "web"},
     )
 
-    return response
+    return redirect_response
 
 
 @router.post("/auth/logout")
