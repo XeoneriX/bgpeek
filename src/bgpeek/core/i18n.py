@@ -138,6 +138,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_devices_source_addresses": "Source addresses (optional)",
         "admin_devices_source_hint": "Override the source address used when the router sends outbound pings/traces. Leave blank to let the router pick.",
         "admin_devices_junos_source_warning": "Most Junos looking-glass setups need an explicit source IP. Without one, ping/trace may leave via an internal interface and get dropped by uRPF at the upstream. You can still save — this is a warning, not a block.",
+        "admin_saving": "Saving…",
         "admin_devices_status": "Status",
         "admin_devices_enabled": "Enabled",
         "admin_devices_disabled": "Disabled",
@@ -292,6 +293,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_devices_health_unknown": "Неизвестно",
         "admin_devices_health_unknown_hint": "Ещё не было успешных сессий с устройством. Статус обновится после первого успешного запроса или пробы.",
         "admin_devices_junos_source_warning": "Большинству Junos-устройств в looking-glass режиме нужен явный source IP. Без него ping/trace может уйти через служебный интерфейс и отфильтроваться uRPF на аплинке. Сохранить всё равно можно — это предупреждение, не блокировка.",
+        "admin_saving": "Сохраняем…",
     },
 }
 

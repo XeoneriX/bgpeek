@@ -794,6 +794,32 @@ def test_devices_edit_form_shows_hint_without_credential() -> None:
     assert "Assign an SSH credential" in response.text
 
 
+def test_devices_new_form_save_button_has_loading_attribute() -> None:
+    """Save buttons in admin forms opt into the disable-on-submit loader via
+    `data-loading-text`. Delete buttons (inline `text-xs`) deliberately skip
+    the attribute — swapping their label to "Saving…" would shift layout."""
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.ui.admin.get_pool", return_value=object()),
+        patch(
+            "bgpeek.ui.admin.credential_crud.list_credentials",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        client = TestClient(app)
+        response = client.get("/admin/devices/new", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 200
+    assert 'data-loading-text="Saving…"' in response.text
+    # And the loader IIFE is wired into the base template once.
+    assert "data-loading-text" in response.text
+    assert "btn.dataset.loadingText" in response.text
+
+
 def test_devices_new_form_includes_junos_source_warning() -> None:
     """Warning block + toggle JS ship with every device form; visibility is client-side."""
     with (
