@@ -102,26 +102,6 @@
 </form>
 
 {% if not is_edit %}
-<script>
-(function () {
-    "use strict";
-    var radios = document.querySelectorAll('input[name="auth_type"]');
-    var localFields = document.querySelectorAll('.js-local-only');
-    function sync() {
-        var selected = document.querySelector('input[name="auth_type"]:checked');
-        var isLocal = !selected || selected.value === "local";
-        localFields.forEach(function (el) {
-            el.style.display = isLocal ? "" : "none";
-            var input = el.querySelector("input");
-            if (input) {
-                input.required = isLocal;
-                if (!isLocal) { input.value = ""; }
-            }
-        });
-    }
-    radios.forEach(function (r) { r.addEventListener("change", sync); });
-    sync();
-})();
-</script>
+<script src="/static/js/admin-users-form.js" defer></script>
 {% endif %}
 {% endblock %}
