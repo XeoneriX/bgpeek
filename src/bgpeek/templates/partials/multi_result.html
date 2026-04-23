@@ -26,13 +26,11 @@
         {% if result_count > 1 %}
         <div class="ml-auto flex items-center gap-1">
             <button type="button" data-view="stacked"
-                    onclick="bgpeekMultiView(this, 'stacked')"
                     class="multi-view-btn multi-view-active px-2.5 py-1 rounded text-xs font-medium
                            transition-colors">
                 {{ t.stacked }}
             </button>
             <button type="button" data-view="side-by-side"
-                    onclick="bgpeekMultiView(this, 'side-by-side')"
                     class="multi-view-btn px-2.5 py-1 rounded text-xs font-medium
                            text-slate-500 dark:text-slate-400
                            hover:bg-slate-200 dark:hover:bg-slate-700
@@ -41,7 +39,6 @@
             </button>
             {% if result_count == 2 and is_bgp %}
             <button type="button" data-view="diff"
-                    onclick="bgpeekMultiView(this, 'diff')"
                     class="multi-view-btn px-2.5 py-1 rounded text-xs font-medium
                            text-slate-500 dark:text-slate-400
                            hover:bg-slate-200 dark:hover:bg-slate-700
@@ -134,36 +131,4 @@
     }
 </style>
 
-<script>
-(function () {
-    "use strict";
-
-    window.bgpeekMultiView = function (btn, mode) {
-        var wrapper = btn.closest("[id^='multi-result-']");
-        var container = wrapper.querySelector(".multi-results-container");
-        var buttons = wrapper.querySelectorAll(".multi-view-btn");
-
-        /* Update button states */
-        buttons.forEach(function (b) {
-            b.classList.remove("multi-view-active");
-            b.classList.add("text-slate-500", "dark:text-slate-400");
-        });
-        btn.classList.add("multi-view-active");
-        btn.classList.remove("text-slate-500", "dark:text-slate-400");
-
-        /* Set layout */
-        container.setAttribute("data-layout", mode);
-
-        /* Diff mode */
-        var pres = container.querySelectorAll("pre");
-        if (mode === "diff" && pres.length >= 2 && window.bgpeekDiff) {
-            window.bgpeekDiff.compute(pres[0], pres[1]);
-        } else if (window.bgpeekDiff && pres.length > 0) {
-            /* Clear diff highlights when switching away */
-            pres.forEach(function (pre) {
-                window.bgpeekDiff.clear(pre);
-            });
-        }
-    };
-})();
-</script>
+<script src="/static/js/multi-result.js" defer></script>
