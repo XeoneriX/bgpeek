@@ -178,3 +178,31 @@ async def test_get_user_by_username(pool: asyncpg.Pool) -> None:
 async def test_get_user_by_username_missing(pool: asyncpg.Pool) -> None:
     user = await crud.get_user_by_username(pool, "no-such-user")
     assert user is None
+
+
+async def test_update_user_email_via_update_user(pool: asyncpg.Pool) -> None:
+    created = await crud.create_local_user(pool, _local_payload("email-user"))
+    updated = await crud.update_user(
+        pool,
+        created.id,
+        UserUpdate(email="new-email@example.com"),
+    )
+    assert updated is not None
+    assert updated.email == "new-email@example.com"
+
+
+async def test_verify_local_user_password(pool: asyncpg.Pool) -> None:
+    created = await crud.create_local_user(pool, _local_payload("verify-pass"))
+    assert await crud.verify_local_user_password(pool, created.id, "secure-password-123") is True
+    assert await crud.verify_local_user_password(pool, created.id, "wrong-password") is False
+
+
+async def test_update_local_user_password(pool: asyncpg.Pool) -> None:
+    created = await crud.create_local_user(pool, _local_payload("change-pass"))
+    assert await crud.verify_local_user_password(pool, created.id, "secure-password-123") is True
+    changed = await crud.update_local_user_password(pool, created.id, "new-secure-password-456")
+    assert changed is True
+    assert await crud.verify_local_user_password(pool, created.id, "secure-password-123") is False
+    assert (
+        await crud.verify_local_user_password(pool, created.id, "new-secure-password-456") is True
+    )

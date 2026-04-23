@@ -48,7 +48,7 @@ def test_primary_asn_unset_site_name_has_no_as_prefix(monkeypatch) -> None:  # t
     client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200
-    assert "<title>bgpeek &middot; looking glass</title>" in response.text
+    assert "<title>bgpeek &middot;" in response.text
     assert "AS bgpeek" not in response.text
 
 

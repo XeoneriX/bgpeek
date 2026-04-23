@@ -246,3 +246,35 @@ async def get_user_by_credentials(pool: asyncpg.Pool, username: str, password: s
     if not _verify_password(password, row["password_hash"]):
         return None
     return User.model_validate(dict(row))
+
+
+async def verify_local_user_password(pool: asyncpg.Pool, user_id: int, password: str) -> bool:
+    """Verify plaintext password for an enabled local-auth user."""
+    row = await pool.fetchrow(
+        """
+        SELECT password_hash
+        FROM users
+        WHERE id = $1 AND auth_provider = 'local' AND enabled IS TRUE
+        """,
+        user_id,
+    )
+    if row is None:
+        return False
+    password_hash = row["password_hash"]
+    if not password_hash:
+        return False
+    return _verify_password(password, password_hash)
+
+
+async def update_local_user_password(pool: asyncpg.Pool, user_id: int, new_password: str) -> bool:
+    """Update bcrypt password hash for a local-auth user. Returns True when updated."""
+    result: str = await pool.execute(
+        """
+        UPDATE users
+        SET password_hash = $1
+        WHERE id = $2 AND auth_provider = 'local'
+        """,
+        _hash_password(new_password),
+        user_id,
+    )
+    return result.endswith(" 1")

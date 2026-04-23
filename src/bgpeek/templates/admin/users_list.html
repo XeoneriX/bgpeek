@@ -62,6 +62,7 @@
                     {% if u.id != current_user.id %}
                     <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline ml-3"
                           onsubmit="return confirm('{{ t.admin_confirm_delete }} {{ u.username }}?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <button type="submit" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-200 text-xs">
                             {{ t.admin_delete }}
                         </button>

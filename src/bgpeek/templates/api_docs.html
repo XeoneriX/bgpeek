@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ brand.site_name }} &middot; {{ t.api_docs }}{% endblock %}
+
+{% block body %}
+{% set header_show_peeringdb = true %}
+{% include "partials/header.html" %}
+
+<main class="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+    <div class="max-w-7xl mx-auto">
+        {% if openapi_url %}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+        <style>
+            #swagger-ui .topbar { display: none; }
+            #swagger-ui .information-container.wrapper { padding-top: 0.75rem; }
+            .dark #swagger-ui,
+            .dark #swagger-ui .wrapper,
+            .dark #swagger-ui .scheme-container {
+                background: transparent;
+                color: rgb(226 232 240);
+            }
+            .dark #swagger-ui .info .title,
+            .dark #swagger-ui .info p,
+            .dark #swagger-ui .info a,
+            .dark #swagger-ui .opblock-tag,
+            .dark #swagger-ui .opblock-summary-description,
+            .dark #swagger-ui .opblock-summary-path,
+            .dark #swagger-ui .opblock-summary-path span,
+            .dark #swagger-ui .response-col_status,
+            .dark #swagger-ui .response-col_description,
+            .dark #swagger-ui .parameter__name,
+            .dark #swagger-ui .parameter__type,
+            .dark #swagger-ui .tab li,
+            .dark #swagger-ui label,
+            .dark #swagger-ui h1,
+            .dark #swagger-ui h2,
+            .dark #swagger-ui h3,
+            .dark #swagger-ui h4,
+            .dark #swagger-ui h5 {
+                color: rgb(226 232 240);
+            }
+            .dark #swagger-ui .opblock-summary-path,
+            .dark #swagger-ui .opblock-summary-path span {
+                color: rgb(241 245 249);
+                opacity: 1;
+                font-weight: 700;
+            }
+            .dark #swagger-ui .opblock-summary-path__deprecated {
+                color: rgb(251 191 36);
+            }
+            .dark #swagger-ui .scheme-container,
+            .dark #swagger-ui .opblock,
+            .dark #swagger-ui .model-box,
+            .dark #swagger-ui .responses-inner,
+            .dark #swagger-ui .parameters-container,
+            .dark #swagger-ui table tbody tr td,
+            .dark #swagger-ui .opblock-section-header,
+            .dark #swagger-ui .opblock-description-wrapper,
+            .dark #swagger-ui .response-control-media-type--accept-controller,
+            .dark #swagger-ui .tab li button.tablinks,
+            .dark #swagger-ui .tab li.tabitem {
+                background: rgb(15 23 42 / 0.75);
+            }
+            .dark #swagger-ui .opblock .opblock-summary,
+            .dark #swagger-ui .opblock-tag,
+            .dark #swagger-ui .model-title,
+            .dark #swagger-ui .responses-inner h4,
+            .dark #swagger-ui .responses-inner h5,
+            .dark #swagger-ui .opblock-section-header,
+            .dark #swagger-ui table thead tr td,
+            .dark #swagger-ui table thead tr th {
+                border-color: rgb(71 85 105 / 0.6);
+            }
+            .dark #swagger-ui .opblock-section-header h4,
+            .dark #swagger-ui .opblock-section-header label,
+            .dark #swagger-ui .responses-inner h4,
+            .dark #swagger-ui .responses-inner h5,
+            .dark #swagger-ui table thead tr td,
+            .dark #swagger-ui table thead tr th,
+            .dark #swagger-ui .tab li button.tablinks,
+            .dark #swagger-ui .opblock-description-wrapper p,
+            .dark #swagger-ui .opblock-external-docs-wrapper p,
+            .dark #swagger-ui .renderedMarkdown p,
+            .dark #swagger-ui .renderedMarkdown code {
+                color: rgb(226 232 240);
+            }
+            .dark #swagger-ui .opblock-section-header .btn,
+            .dark #swagger-ui .responses-inner .btn,
+            .dark #swagger-ui .btn.execute {
+                color: rgb(241 245 249);
+                border-color: rgb(100 116 139 / 0.8);
+            }
+            .dark #swagger-ui .btn.cancel {
+                color: rgb(226 232 240);
+                border-color: rgb(148 163 184 / 0.8);
+                background: rgb(30 41 59);
+            }
+            .dark #swagger-ui .response-control-media-type__accept-message {
+                color: rgb(134 239 172);
+            }
+            .dark #swagger-ui input[type=text],
+            .dark #swagger-ui textarea,
+            .dark #swagger-ui select {
+                background: rgb(15 23 42);
+                color: rgb(226 232 240);
+                border-color: rgb(71 85 105 / 0.7);
+            }
+            .dark #swagger-ui .btn {
+                color: rgb(226 232 240);
+                border-color: rgb(71 85 105 / 0.8);
+            }
+            .dark #swagger-ui .highlight-code .microlight,
+            .dark #swagger-ui .microlight {
+                background: rgb(2 6 23);
+            }
+        </style>
+        <div id="swagger-ui" class="h-[calc(100vh-5.5rem)] min-h-[40rem] overflow-auto"></div>
+        <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+        <script>
+            window.addEventListener("DOMContentLoaded", function () {
+                SwaggerUIBundle({
+                    url: {{ openapi_url | tojson }},
+                    dom_id: "#swagger-ui",
+                    deepLinking: true,
+                    displayRequestDuration: true,
+                    tryItOutEnabled: true,
+                    defaultModelsExpandDepth: 1,
+                    docExpansion: "list",
+                    syntaxHighlight: { theme: "nord" },
+                    presets: [
+                        SwaggerUIBundle.presets.apis,
+                        SwaggerUIBundle.SwaggerUIStandalonePreset
+                    ]
+                });
+            });
+        </script>
+        {% else %}
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            API docs are disabled in this environment.
+        </div>
+        {% endif %}
+    </div>
+</main>
+{% endblock %}

@@ -43,7 +43,11 @@ class TestDocsEndpointDefault:
     def test_app_wired_under_default_settings(self) -> None:
         from bgpeek.main import app
 
-        assert app.docs_url == "/api/docs"
+        # The built-in Swagger UI is replaced by a branded /api/docs handler
+        # that renders the same spec inside the app shell, so FastAPI's own
+        # ``docs_url`` is None even when docs are enabled. The OpenAPI schema
+        # is still served from FastAPI itself, gated on ``docs_enabled``.
+        assert app.docs_url is None
         assert app.openapi_url == "/api/openapi.json"
         assert app.redoc_url is None
 
@@ -84,8 +88,15 @@ class TestDocsLinkInHeader:
 
     def test_link_hidden_when_global_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from bgpeek.main import app
+        from bgpeek.core import templates as templates_mod
 
+        # ``header_links_for`` filters the docs entry based on
+        # ``settings.docs_enabled`` at render time, so toggle it on the live
+        # settings object rather than through the Jinja global (the Jinja
+        # global is a display-only fallback for templates that still consult
+        # it directly).
         monkeypatch.setitem(templates.env.globals, "docs_enabled", False)
+        monkeypatch.setattr(templates_mod.settings, "docs_enabled", False)
         client = TestClient(app)
         resp = client.get("/")
         assert resp.status_code == 200

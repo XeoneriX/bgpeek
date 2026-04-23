@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
@@ -64,6 +65,12 @@ _DISABLED_USER = User(
 )
 
 _admin_dep = require_role(UserRole.ADMIN)
+
+
+def _extract_csrf_token(html: str) -> str:
+    match = re.search(r'name="csrf_token" value="([^"]+)"', html)
+    assert match is not None
+    return match.group(1)
 
 
 def _build_app() -> FastAPI:
@@ -362,8 +369,10 @@ class TestWebLogin:
 
     def test_login_success_sets_cookie_and_redirects(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with (
             self._patch_api_pool(),
@@ -372,9 +381,16 @@ class TestWebLogin:
             self._patch_log_audit(),
         ):
             client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
             resp = client.post(
                 "/auth/login",
-                data={"username": "local-user", "password": "secret123"},
+                data={
+                    "username": "local-user",
+                    "password": "secret123",
+                    "csrf_token": csrf_token,
+                },
             )
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] == "/"
@@ -391,28 +407,32 @@ class TestWebLogin:
             self._patch_api_pool(),
             self._patch_credentials(None),
             self._patch_ldap(None),
-            self._patch_templates() as mock_tpl,
             self._patch_log_audit(),
         ):
-            mock_tpl.TemplateResponse.return_value = HTMLResponse(
-                "<html>error</html>", status_code=401
-            )
             client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
             resp = client.post(
                 "/auth/login",
-                data={"username": "bad-user", "password": "wrong"},
+                data={"username": "bad-user", "password": "wrong", "csrf_token": csrf_token},
             )
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_logout_clears_cookie(self) -> None:
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with self._patch_api_pool(), self._patch_log_audit():
             client = TestClient(app, follow_redirects=False)
             client.cookies.set(_COOKIE_NAME, "some-token")
-            resp = client.post("/auth/logout")
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post("/auth/logout", data={"csrf_token": csrf_token})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] in ("/", "/auth/login")
         # Cookie should be cleared (max-age=0 or deleted)
@@ -424,8 +444,10 @@ class TestWebLogin:
         captured it pre-logout can't keep using it until natural expiry."""
         from bgpeek.api.auth import router as auth_router
         from bgpeek.core.jwt import create_token
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         token = create_token(1, "alice", "admin")
         with (
@@ -435,7 +457,10 @@ class TestWebLogin:
         ):
             client = TestClient(app, follow_redirects=False)
             client.cookies.set(_COOKIE_NAME, token)
-            resp = client.post("/auth/logout")
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post("/auth/logout", data={"csrf_token": csrf_token})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         # revoke called once with the cookie's jti and a positive TTL
         # (remaining lifetime of the fresh token).
@@ -448,8 +473,10 @@ class TestWebLogin:
     def test_logout_without_cookie_does_not_call_revoke(self) -> None:
         """No cookie → no token → no revoke call (nothing to revoke)."""
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with (
             self._patch_api_pool(),
@@ -457,7 +484,10 @@ class TestWebLogin:
             patch("bgpeek.api.auth.revoke_jwt", new_callable=AsyncMock) as revoke_spy,
         ):
             client = TestClient(app, follow_redirects=False)
-            resp = client.post("/auth/logout")
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post("/auth/logout", data={"csrf_token": csrf_token})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         revoke_spy.assert_not_awaited()
 
@@ -465,8 +495,10 @@ class TestWebLogin:
         """An expired or tampered cookie on logout must not 500 — logout is a
         user-initiated action and must always succeed."""
         from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
 
         app = FastAPI()
+        app.add_middleware(I18nMiddleware)
         app.include_router(auth_router)
         with (
             self._patch_api_pool(),
@@ -475,6 +507,179 @@ class TestWebLogin:
         ):
             client = TestClient(app, follow_redirects=False)
             client.cookies.set(_COOKIE_NAME, "not.a.valid.jwt")
-            resp = client.post("/auth/logout")
+            csrf_page = client.get("/auth/login")
+            assert csrf_page.status_code == status.HTTP_200_OK
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post("/auth/logout", data={"csrf_token": csrf_token})
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         revoke_spy.assert_not_awaited()
+
+
+class TestAccountSettings:
+    def _build_settings_app(self, current_user: User) -> FastAPI:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+
+        async def _override_auth() -> User:
+            return current_user
+
+        app.dependency_overrides[authenticate] = _override_auth
+        return app
+
+    def _patch_settings_pool(self) -> object:
+        pool = AsyncMock()
+        return patch("bgpeek.api.auth.get_pool", return_value=pool)
+
+    def _csrf_token_for_settings(self, client: TestClient) -> str:
+        response = client.get("/account/settings")
+        assert response.status_code == status.HTTP_200_OK
+        return _extract_csrf_token(response.text)
+
+    def test_settings_page_renders_for_authenticated_user(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        client = TestClient(app)
+        resp = client.get("/account/settings")
+        assert resp.status_code == status.HTTP_200_OK
+        assert "Account settings" in resp.text
+
+    def test_settings_page_requires_authentication(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        client = TestClient(app)
+        resp = client.get("/account/settings")
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_update_email_redirects_on_success(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with (
+            self._patch_settings_pool(),
+            patch(
+                "bgpeek.api.auth.crud.update_user",
+                new_callable=AsyncMock,
+                return_value=_LOCAL_USER.model_copy(update={"email": "new@example.com"}),
+            ),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/email",
+                data={"email": "new@example.com", "csrf_token": csrf_token},
+            )
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        assert resp.headers["location"] == "/account/settings?updated=email"
+
+    def test_update_email_rejects_too_long_value(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with self._patch_settings_pool():
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/email",
+                data={"email": ("a" * 256) + "@example.com", "csrf_token": csrf_token},
+            )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "valid email address" in resp.text
+
+    def test_update_email_rejects_missing_csrf(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with self._patch_settings_pool():
+            client = TestClient(app, follow_redirects=False)
+            resp = client.post("/account/settings/email", data={"email": "new@example.com"})
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert resp.json()["detail"] == "invalid CSRF token"
+
+    def test_update_password_requires_matching_confirmation(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with self._patch_settings_pool():
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/password",
+                data={
+                    "current_password": "secret123",
+                    "new_password": "new-secret-123",
+                    "confirm_password": "different-secret-123",
+                    "csrf_token": csrf_token,
+                },
+            )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "do not match" in resp.text
+
+    def test_update_password_redirects_on_success(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with (
+            self._patch_settings_pool(),
+            patch(
+                "bgpeek.api.auth.crud.verify_local_user_password",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "bgpeek.api.auth.crud.update_local_user_password",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/password",
+                data={
+                    "current_password": "secret123",
+                    "new_password": "new-secret-123",
+                    "confirm_password": "new-secret-123",
+                    "csrf_token": csrf_token,
+                },
+            )
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        assert resp.headers["location"] == "/account/settings?updated=password"
+
+    def test_update_password_rejects_invalid_current_password(self) -> None:
+        app = self._build_settings_app(_LOCAL_USER)
+        with (
+            self._patch_settings_pool(),
+            patch(
+                "bgpeek.api.auth.crud.verify_local_user_password",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/password",
+                data={
+                    "current_password": "wrong-pass",
+                    "new_password": "new-secret-123",
+                    "confirm_password": "new-secret-123",
+                    "csrf_token": csrf_token,
+                },
+            )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Current password is incorrect" in resp.text
+
+    def test_update_password_disallowed_for_non_local_accounts(self) -> None:
+        non_local_user = _ADMIN.model_copy(update={"auth_provider": "api_key"})
+        app = self._build_settings_app(non_local_user)
+        with self._patch_settings_pool():
+            client = TestClient(app, follow_redirects=False)
+            csrf_token = self._csrf_token_for_settings(client)
+            resp = client.post(
+                "/account/settings/password",
+                data={
+                    "current_password": "secret123",
+                    "new_password": "new-secret-123",
+                    "confirm_password": "new-secret-123",
+                    "csrf_token": csrf_token,
+                },
+            )
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST
+        assert "authentication provider" in resp.text

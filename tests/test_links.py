@@ -126,3 +126,20 @@ def test_history_shows_peeringdb_icon_when_enabled(monkeypatch) -> None:  # type
     assert response.status_code == 200
     assert "/static/peeringdb.png" in response.text
     assert "https://www.peeringdb.com/asn/64496" in response.text
+
+
+def test_api_docs_page_renders_swagger_container_when_openapi_enabled(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(app, "openapi_url", "/api/openapi.json")
+    client = TestClient(app)
+    response = client.get("/api/docs")
+    assert response.status_code == 200
+    assert 'id="swagger-ui"' in response.text
+    assert "/api/openapi.json" in response.text
+
+
+def test_api_docs_page_shows_disabled_notice_when_openapi_disabled(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(app, "openapi_url", None)
+    client = TestClient(app)
+    response = client.get("/api/docs")
+    assert response.status_code == 200
+    assert "API docs are disabled in this environment." in response.text

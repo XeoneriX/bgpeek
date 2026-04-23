@@ -1,4 +1,5 @@
-{% set is_authenticated = user is not none and user.id != 0 %}
+{% set current_user = user | default(none) %}
+{% set is_authenticated = current_user is not none and current_user.id != 0 %}
 <details class="relative group shrink-0" data-user-menu>
     <summary class="list-none flex items-center gap-2 rounded-md border border-slate-300 dark:border-slate-600
                     bg-white dark:bg-slate-800 px-2.5 py-1.5 text-slate-700 dark:text-slate-200 shadow-sm
@@ -13,7 +14,7 @@
         </svg>
         <span class="inline text-sm font-medium max-w-[11rem] truncate">
             {% if is_authenticated %}
-            {{ user.username }}
+            {{ current_user.username }}
             {% else %}
             {{ t.guest }}
             {% endif %}
@@ -28,15 +29,17 @@
          data-user-menu-panel>
         {% if is_authenticated %}
         <div class="py-1">
-            <button type="button" disabled
-                    class="w-full text-left px-4 py-2 text-sm text-slate-400 dark:text-slate-500 cursor-not-allowed">
+            <a href="/account/settings"
+               class="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200
+                      hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 {{ t.account_settings }}
-            </button>
+            </a>
         </div>
         {% endif %}
         <div class="border-t border-slate-100 dark:border-slate-700 py-1">
             {% if is_authenticated %}
             <form method="post" action="/auth/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token | default('') }}">
                 <button type="submit"
                         class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200
                                hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">

@@ -9,10 +9,12 @@ import jwt as pyjwt
 import structlog
 from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi_csrf_protect import CsrfProtect
 
 from bgpeek.config import settings
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
 from bgpeek.core.auth import authenticate, require_role
+from bgpeek.core.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from bgpeek.core.jwt import create_token, decode_token
 from bgpeek.core.jwt_revoke import revoke as revoke_jwt
 from bgpeek.core.ldap import authenticate_ldap
@@ -33,6 +35,7 @@ from bgpeek.models.user import (
     UserCreateLocal,
     UserPublic,
     UserRole,
+    UserUpdate,
 )
 from bgpeek.models.webhook import WebhookEvent
 
@@ -43,15 +46,81 @@ router = APIRouter(tags=["auth"])
 _COOKIE_NAME = "bgpeek_token"
 
 
+def _normalize_email(raw: str) -> str | None:
+    """Normalize optional email form value."""
+    value = raw.strip()
+    return value or None
+
+
+def _render_account_settings(
+    request: Request,
+    user: User,
+    *,
+    email_error: str | None = None,
+    password_error: str | None = None,
+    success_message: str | None = None,
+    email_value: str | None = None,
+    csrf_token: str = "",
+) -> HTMLResponse:
+    """Render account settings page with optional status messages."""
+    return templates.TemplateResponse(
+        request=request,
+        name="account_settings.html",
+        context={
+            "user": user,
+            "t": request.state.t,
+            "lang": request.state.lang,
+            "email_error": email_error,
+            "password_error": password_error,
+            "success_message": success_message,
+            "email_value": email_value if email_value is not None else (user.email or ""),
+            "can_change_password": user.auth_provider == "local",
+            "csrf_token": csrf_token,
+        },
+        status_code=status.HTTP_400_BAD_REQUEST
+        if email_error or password_error
+        else status.HTTP_200_OK,
+    )
+
+
+def _render_account_settings_with_csrf(
+    request: Request,
+    user: User,
+    csrf_protect: CsrfProtect,
+    *,
+    email_error: str | None = None,
+    password_error: str | None = None,
+    success_message: str | None = None,
+    email_value: str | None = None,
+) -> HTMLResponse:
+    """Render account settings with a fresh CSRF token and cookie."""
+    csrf_token, signed_token = issue_csrf_token(csrf_protect)
+    response = _render_account_settings(
+        request,
+        user,
+        email_error=email_error,
+        password_error=password_error,
+        success_message=success_message,
+        email_value=email_value,
+        csrf_token=csrf_token,
+    )
+    set_csrf_cookie(csrf_protect, response, signed_token)
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Web login / logout
 # ---------------------------------------------------------------------------
 
 
 @router.get("/auth/login", response_class=HTMLResponse)
-async def login_page(request: Request) -> HTMLResponse:
+async def login_page(
+    request: Request,
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+) -> HTMLResponse:
     """Render the login form."""
-    return templates.TemplateResponse(
+    csrf_token, signed_token = issue_csrf_token(csrf_protect)
+    response = templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
@@ -60,13 +129,18 @@ async def login_page(request: Request) -> HTMLResponse:
             "lang": request.state.lang,
             "oidc_enabled": settings.oidc_enabled,
             "allow_guest_continue": settings.access_mode in ("guest", "open"),
+            "csrf_token": csrf_token,
         },
     )
+    set_csrf_cookie(csrf_protect, response, signed_token)
+    return response
 
 
 @router.post("/auth/login", response_model=None)
 async def login_submit(
     request: Request,
+    _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     username: str = Form(),  # noqa: B008
     password: str = Form(),  # noqa: B008
     _rl: None = Depends(rate_limit_login),  # noqa: B008
@@ -120,7 +194,8 @@ async def login_submit(
                 **request_ctx(request),
             ),
         )
-        return templates.TemplateResponse(
+        csrf_token, signed_token = issue_csrf_token(csrf_protect)
+        login_response = templates.TemplateResponse(
             request=request,
             name="login.html",
             context={
@@ -129,9 +204,12 @@ async def login_submit(
                 "lang": request.state.lang,
                 "oidc_enabled": settings.oidc_enabled,
                 "allow_guest_continue": settings.access_mode in ("guest", "open"),
+                "csrf_token": csrf_token,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
+        set_csrf_cookie(csrf_protect, login_response, signed_token)
+        return login_response
 
     # Update last_login_at
     await get_pool().execute(
@@ -142,8 +220,8 @@ async def login_submit(
     token = create_token(user.id, user.username, user.role.value)
     max_age = settings.jwt_expire_minutes * 60
 
-    response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(
+    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    redirect_response.set_cookie(
         key=_COOKIE_NAME,
         value=token,
         httponly=True,
@@ -170,12 +248,13 @@ async def login_submit(
         {"user_id": user.id, "username": user.username, "method": "web"},
     )
 
-    return response
+    return redirect_response
 
 
 @router.post("/auth/logout")
 async def logout(
     request: Request,
+    _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
     bgpeek_token: str | None = Cookie(default=None),  # noqa: B008
 ) -> RedirectResponse:
     """Clear the auth cookie, revoke the JWT server-side, and redirect.
@@ -225,6 +304,116 @@ async def logout(
         secure=settings.cookie_secure,
     )
     return response
+
+
+@router.get("/account/settings", response_class=HTMLResponse)
+async def account_settings_page(
+    request: Request,
+    user: User = Depends(authenticate),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+    updated: str | None = None,
+) -> HTMLResponse:
+    """Render account settings for the authenticated user."""
+    success_message: str | None = None
+    if updated == "email":
+        success_message = request.state.t["account_email_updated"]
+    elif updated == "password":
+        success_message = request.state.t["account_password_updated"]
+    return _render_account_settings_with_csrf(
+        request,
+        user,
+        csrf_protect,
+        success_message=success_message,
+    )
+
+
+@router.post("/account/settings/email", response_class=HTMLResponse)
+async def account_settings_update_email(
+    request: Request,
+    email: str = Form(""),
+    _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+    user: User = Depends(authenticate),  # noqa: B008
+) -> Response:
+    """Update the authenticated user's email address."""
+    normalized_email = _normalize_email(email)
+    if normalized_email is not None and len(normalized_email) > 255:
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            email_error=request.state.t["account_email_invalid"],
+            email_value=email,
+        )
+
+    updated_user = await crud.update_user(
+        get_pool(),
+        user.id,
+        UserUpdate(email=normalized_email),
+    )
+    if updated_user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+    return RedirectResponse(
+        "/account/settings?updated=email", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/account/settings/password", response_class=HTMLResponse)
+async def account_settings_update_password(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+    _csrf_ok: None = Depends(validate_csrf),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+    user: User = Depends(authenticate),  # noqa: B008
+) -> Response:
+    """Change password for the authenticated local-auth user."""
+    if user.auth_provider != "local":
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            password_error=request.state.t["account_password_unavailable"],
+        )
+
+    if len(new_password) < 8:
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            password_error=request.state.t["account_password_too_short"],
+        )
+    if len(new_password) > 128:
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            password_error=request.state.t["account_password_too_long"],
+        )
+    if new_password != confirm_password:
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            password_error=request.state.t["account_password_mismatch"],
+        )
+
+    valid_current = await crud.verify_local_user_password(get_pool(), user.id, current_password)
+    if not valid_current:
+        return _render_account_settings_with_csrf(
+            request,
+            user,
+            csrf_protect,
+            password_error=request.state.t["account_password_invalid_current"],
+        )
+
+    updated = await crud.update_local_user_password(get_pool(), user.id, new_password)
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+    return RedirectResponse(
+        "/account/settings?updated=password", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/api/auth/me", response_model=UserPublic)

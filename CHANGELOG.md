@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Tightened authentication flow for OIDC/LDAP identity providers: upserts are now scoped by `auth_provider`, so a directory that returns `role=admin` for a username already owned by another provider is refused rather than silently overwriting the local row.
+- `/auth/logout` now revokes the JWT server-side via a Redis `jti` blocklist in addition to clearing the cookie; the token is invalidated immediately rather than staying valid until natural expiry.
+- Result retrieval (`/api/results/{id}` and `/result/{id}`) is now scoped to the caller's identity; non-privileged users see only their own results, and rows linked to restricted devices return 404 regardless of ownership. ADMIN/NOC continue to see everything.
+- `/history` no longer returns the most-recent results across *all* users to guest / anonymous callers — the handler now renders an empty list in that case.
+- `BGPEEK_ENCRYPTION_KEY` is required at startup in non-debug mode (previously an empty value silently fell through to plaintext storage for SSH credentials). A malformed Fernet key is now a fatal validation error.
+- LDAP authentication rejects empty passwords up-front (some directories treat an empty-password bind as an *unauthenticated bind* and return success). StartTLS now runs before any bind so the bind DN + password no longer cross the socket in plaintext on `ldap://` deployments with `BGPEEK_LDAP_USE_TLS=true`.
+- Structlog pipeline now redacts log fields whose key matches `password|api_key|secret|token|authorization|encryption_key|bind_password|client_secret|jwt_secret|session_secret|cookie` before they reach the remote log shipper, so an accidental `log.info(..., password=x)` or an asyncpg / netmiko traceback carrying credential arguments no longer leaves the host.
+- Webhook delivery pins the pre-validated IP and passes the original hostname via `Host:` header + SNI override, closing the DNS-rebind TOCTOU where a low-TTL resolver could flip between the first lookup (passes the blocklist) and httpx's own lookup (hits 127.0.0.1 / 169.254.169.254). The SSRF blocklist also gained `0.0.0.0/8`, `::/128`, multicast and reserved ranges.
+- CSRF protection on cookie-authenticated web forms via [`fastapi-csrf-protect`](https://pypi.org/project/fastapi-csrf-protect/). All admin POST flows (devices, credentials, users, community labels, webhooks), `/auth/login`, `/auth/logout`, and the new account-settings endpoints require a matching `csrf_token` + signed cookie pair.
+
+### Added
+
+- Account settings page (`/account/settings`) for authenticated users to self-manage email and password, with validation and duplicate-email safeguards. Local-auth users only; OIDC/LDAP accounts see a read-only view.
+- Branded API documentation page (`/api/docs`) with the app's dark-mode styling, replacing the default Swagger UI layout. Gated on `BGPEEK_DOCS_ENABLED` (404 when disabled).
+- `BGPEEK_ENABLED_LANGUAGES` (default `en,ru`) — operator-level allow-list of UI language codes. Languages outside the list are ignored even if requested via `?lang=`, the `bgpeek_lang` cookie, or `Accept-Language`. `BGPEEK_DEFAULT_LANG` must be a member of the allow-list; a mismatch fails validation at startup. Also exposed as a Jinja global (`enabled_languages`) so a future language switcher can auto-hide when the list has length 1.
+- `BGPEEK_ALLOWED_TARGET_TYPES` (default `ip,cidr,hostname`) — operator-level allow-list of accepted query-target kinds. Targets whose syntactic kind is not in the list are rejected with HTTP 400 before any DNS lookup or SSH work.
+- `BGPEEK_DOCS_ENABLED` (default `true`) — single toggle that governs both the Swagger/OpenAPI endpoints and the `API` link in the main-site header. Previously the docs were gated behind `BGPEEK_DEBUG=true`; this splits the concerns.
+- `BGPEEK_LOG_FORMAT` (default `console`) — selects the structlog renderer (`console` / `json` / `logfmt`).
+- `BGPEEK_LOG_LEVEL` (default `info`) — minimum log level. Events below the threshold are dropped before rendering.
+- `BGPEEK_AUDIT_STDOUT` (default `true`) — mirrors each `audit_log` row to the structlog stream as a structured `audit` event. The PostgreSQL row remains the source of truth.
+- Native HTTP log shipper (`BGPEEK_LOG_SHIP_URL`) — optional second sink that batches structlog events and POSTs them to any HTTP endpoint. Three wire formats (`ndjson`, `loki`, `elasticsearch`). Configurable batch size / timeout / queue cap; on overflow the oldest events are dropped.
+- `BGPEEK_SERVICE_NAME` (default `bgpeek`) — every structlog event now carries a `service=<name>` field for multi-instance deployments.
+- `log_shipper_started` and `log_shipper_shutdown` info lines — the HTTP log shipper now announces startup (url scrubbed of query string, format, batch size, queue cap) and shutdown (events flushed from the tail).
+- Audit-log coverage for auth endpoints (login success/failure, logout, create-user both variants, delete-user) and for device + admin-panel user CRUD.
+- Prometheus metrics for the HTTP log shipper: `bgpeek_log_ship_queue_depth`, `bgpeek_log_ship_events_total`, `bgpeek_log_ship_dropped_total`, `bgpeek_log_ship_delivered_total`, `bgpeek_log_ship_failed_total`, plus `bgpeek_log_ship_queue_max` gauge.
+- Admin device form: platform-aware soft warning when `platform=juniper_junos` and both `source4` and `source6` are blank — non-blocking, explains that Junos looking-glass setups typically need an explicit source IP or `ping`/`trace` leaves via an internal interface.
+- Async SSH reachability probe on admin device save, feeding both `audit_log` (as a `probe` action) and the circuit breaker. Pending probes are drained on application shutdown.
+- Consistent centralised page navigation via shared `partials/header.html` / `partials/user_menu.html`; fewer inline duplicates across index / history / result / admin / docs.
+
+### Changed
+
+- `<select>` controls now render a consistent custom chevron positioned with a small gap from the right border, replacing the browser-default arrow which hugged the edge inconsistently across Chrome/Firefox/Safari.
+- Swagger UI and the OpenAPI schema are no longer gated behind `BGPEEK_DEBUG=true`. They are now controlled by the dedicated `BGPEEK_DOCS_ENABLED` (default `true`). Operators relying on the old implicit "no docs in prod" behaviour will now see them unless they explicitly set `BGPEEK_DOCS_ENABLED=false`.
+- `POST /api/users` now returns the new `UserCreated` model, which includes the generated `api_key` exactly once (show-once pattern). Subsequent reads of the user never expose the key again — only the SHA-256 hash is stored.
+
+### Deprecated
+
+- Client-supplied `api_key` on `POST /api/users`. The server now generates a cryptographically strong value by default; supplying the field remains accepted for one release cycle (logs a `deprecated_client_supplied_api_key` warning) and will be removed in v1.5.0. Migrate admin automation to read the `api_key` field from the 201 response instead of pre-generating the secret client-side.
+
 ### Fixed
 
 - Admin device form: saving any device with `source4` or `source6` set returned a 500. `asyncpg` cannot bind a Pydantic `IPv4Address`/`IPv6Address` to the TEXT columns used for source IPs, so every save with a non-empty source IP failed with `invalid input for query argument ... expected str, got IPv4Address`. `create_device`/`update_device` now serialise the payload with `model_dump(mode="json")`, which coerces IP objects to strings (and is a no-op for the `INET` address column, which accepts both).
@@ -41,6 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `<select>` controls now render a consistent custom chevron positioned with a small gap from the right border, replacing the browser-default arrow which hugged the edge inconsistently across Chrome/Firefox/Safari. Applied to the home page Query type selector.
 - Swagger UI and the OpenAPI schema are no longer gated behind `BGPEEK_DEBUG=true`. They're now controlled by the dedicated `BGPEEK_DOCS_ENABLED` (default `true`), so operators can keep them on without enabling other debug-only behaviour, and turn them off in prod without faking debug mode. Pre-existing deployments with `BGPEEK_DEBUG` set to anything are unaffected — `docs_enabled` starts on regardless — but operators who relied on `BGPEEK_DEBUG=false` silently hiding docs will now see them unless they explicitly set `BGPEEK_DOCS_ENABLED=false`.
+
+### Internal
+
+- Template chrome refactor and user-context hardening in shared template wiring (`TemplateUserMiddleware` attaches best-effort `request.state.user` for all SSR pages).
+- Auth, admin UI, DB users, link, and template-helper test coverage expanded for account settings, link generation, CSRF enforcement, identity-provider collision, API-key generation path, and result-retrieval gating.
 
 ## [1.3.1] - 2026-04-19
 
@@ -255,6 +301,7 @@ Initial public release.
 - SSH credential management guide
 - REST API reference with curl examples
 
+[Unreleased]: https://github.com/xeonerix/bgpeek/compare/v1.3.1...HEAD
 [1.3.1]: https://github.com/xeonerix/bgpeek/releases/tag/v1.3.1
 [1.3.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.3.0
 [1.2.0]: https://github.com/xeonerix/bgpeek/releases/tag/v1.2.0

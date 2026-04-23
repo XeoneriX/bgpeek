@@ -44,6 +44,7 @@ dependencies = [
     "netmiko>=4.5.0",
     # Auth
     "authlib>=1.6.11",                # OIDC (GHSA-jj8c-mmj3-mmgv fix)
+    "fastapi-csrf-protect>=1.0.7",    # CSRF protection for cookie-authenticated web forms
     "itsdangerous>=2.1",              # SessionMiddleware (OIDC state)
     "ldap3>=2.9.1",                   # LDAP
     "pyjwt>=2.12.0",                  # CVE fix: crit header bypass

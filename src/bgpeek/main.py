@@ -12,9 +12,10 @@ from itertools import groupby
 from operator import attrgetter
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi_csrf_protect import CsrfProtect
 from prometheus_fastapi_instrumentator import Instrumentator
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -27,6 +28,7 @@ from bgpeek.api import query as query_api
 from bgpeek.api import webhooks as webhooks_api
 from bgpeek.config import settings
 from bgpeek.core.auth import guest_user, optional_auth
+from bgpeek.core.csrf import issue_csrf_token, set_csrf_cookie
 from bgpeek.core.i18n import detect_language, get_translations
 from bgpeek.core.log_shipper import install_shipper, shutdown_shipper
 from bgpeek.core.logging import configure_logging
@@ -238,6 +240,22 @@ _CSP_POLICY = (
 )
 
 
+class TemplateUserMiddleware(BaseHTTPMiddleware):
+    """Attach best-effort authenticated user to request state for templates."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        try:
+            request.state.user = await optional_auth(
+                x_api_key=request.headers.get("X-API-Key"),
+                authorization=request.headers.get("Authorization"),
+                bgpeek_token=request.cookies.get("bgpeek_token"),
+            )
+        except HTTPException:
+            # Invalid/expired credentials should not break template rendering.
+            request.state.user = None
+        return await call_next(request)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add standard security headers to all responses."""
 
@@ -387,7 +405,10 @@ app = FastAPI(
     description=settings.brand_site_description,
     version=__version__,
     lifespan=lifespan,
-    docs_url="/api/docs" if settings.docs_enabled else None,
+    # The built-in Swagger UI is replaced by a branded `/api/docs` handler
+    # below that renders the same OpenAPI spec inside the app shell. The route
+    # is still gated behind `settings.docs_enabled` at the handler level.
+    docs_url=None,
     redoc_url=None,
     openapi_url="/api/openapi.json" if settings.docs_enabled else None,
 )
@@ -395,6 +416,7 @@ app = FastAPI(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(I18nMiddleware)
+app.add_middleware(TemplateUserMiddleware)
 
 # OIDC must be set up before routes are registered (needs SessionMiddleware).
 setup_oidc(app)
@@ -457,11 +479,29 @@ async def health(deep: bool = False) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
+def _template_response_with_csrf(
+    request: Request,
+    *,
+    name: str,
+    context: dict[str, object],
+    csrf_protect: CsrfProtect,
+) -> Response:
+    csrf_token, signed_token = issue_csrf_token(csrf_protect)
+    response = templates.TemplateResponse(
+        request=request,
+        name=name,
+        context={**context, "csrf_token": csrf_token},
+    )
+    set_csrf_cookie(csrf_protect, response, signed_token)
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(
     request: Request,
     location: str | None = None,
     user: User | None = Depends(optional_auth),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
 ) -> Response:
     """Main looking glass form — loads devices from DB for the dropdown."""
     if user is None:
@@ -489,8 +529,8 @@ async def index(
     # enabled/visible device.
     preselect_device = location if location and any(d.name == location for d in devices) else None
 
-    return templates.TemplateResponse(
-        request=request,
+    return _template_response_with_csrf(
+        request,
         name="index.html",
         context={
             "version": __version__,
@@ -502,6 +542,7 @@ async def index(
             "lg_links": _lg_links,
             "preselect_device": preselect_device,
         },
+        csrf_protect=csrf_protect,
     )
 
 
@@ -514,6 +555,7 @@ async def history(
     offset: int = 0,
     partial: int = 0,
     user: User | None = Depends(optional_auth),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
 ) -> Response:
     """Query history page with offset-based pagination.
 
@@ -560,10 +602,43 @@ async def history(
             name="partials/history_rows.html",
             context=ctx,
         )
-    return templates.TemplateResponse(
-        request=request,
+    return _template_response_with_csrf(
+        request,
         name="history.html",
         context=ctx,
+        csrf_protect=csrf_protect,
+    )
+
+
+@app.get("/api/docs", response_class=HTMLResponse, include_in_schema=False)
+async def api_docs_page(
+    request: Request,
+    user: User | None = Depends(optional_auth),  # noqa: B008
+    csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+) -> Response:
+    """Render API docs inside the branded application shell.
+
+    Gated on ``BGPEEK_DOCS_ENABLED`` — operators who explicitly disabled docs
+    must get a 404 so neither the branded shell nor the upstream spec leak.
+    """
+    if not settings.docs_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if user is None:
+        if settings.access_mode == "closed":
+            return RedirectResponse(url="/auth/login", status_code=303)
+        if settings.access_mode == "guest":
+            user = guest_user()
+
+    return _template_response_with_csrf(
+        request,
+        name="api_docs.html",
+        context={
+            "user": user,
+            "t": request.state.t,
+            "lang": request.state.lang,
+            "openapi_url": app.openapi_url,
+        },
+        csrf_protect=csrf_protect,
     )
 
 
