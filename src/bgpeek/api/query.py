@@ -346,11 +346,17 @@ def _may_view_stored_result(stored: StoredResult, caller: User | None) -> bool:
     """Return True iff ``caller`` is allowed to see this stored result.
 
     ADMIN/NOC see everything. Everyone else only sees results their own
-    user_id produced. Missing ownership metadata on the row is treated as
-    privileged-only to avoid leaking pre-migration entries.
+    user_id produced AND only when the underlying device is not restricted.
+    Missing ownership metadata on the row is treated as privileged-only to
+    avoid leaking pre-migration entries.
     """
     if caller is not None and caller.role in (UserRole.ADMIN, UserRole.NOC):
         return True
+    # Non-privileged callers never see results against restricted devices —
+    # even if they were the original author — because the restriction reflects
+    # the device's current state, not its state at query time.
+    if stored.device_restricted:
+        return False
     owner_id = stored.user_id
     if owner_id is None or owner_id == 0:
         return False

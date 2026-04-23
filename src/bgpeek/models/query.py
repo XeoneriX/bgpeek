@@ -76,6 +76,11 @@ class StoredResult(BaseModel):
     cached: bool = False
     created_at: datetime
     expires_at: datetime
+    # Populated at retrieve time via LEFT JOIN on devices. Not persisted on the
+    # row itself — an admin flipping `devices.restricted=true` must immediately
+    # hide previously-public permalinks rather than being frozen at query time.
+    # Defaults to False for backward compatibility with direct model construction.
+    device_restricted: bool = False
 
 
 class QueryError(BaseModel):

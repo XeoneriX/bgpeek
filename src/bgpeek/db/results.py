@@ -50,11 +50,20 @@ async def save_result(
 
 
 async def get_result(pool: asyncpg.Pool, result_id: uuid.UUID) -> StoredResult | None:
-    """Fetch a result by UUID. Returns None if missing or expired."""
+    """Fetch a result by UUID. Returns None if missing or expired.
+
+    The ``device_restricted`` flag is resolved at retrieve time via LEFT JOIN on
+    ``devices`` — so admin toggling a device to restricted immediately hides
+    previously-public permalinks, rather than leaving them frozen at the state
+    of the row when the query ran. Orphaned rows (device deleted/renamed) are
+    treated as restricted so they cannot leak by accident.
+    """
     row = await pool.fetchrow(
         """
-        SELECT * FROM query_results
-        WHERE id = $1 AND expires_at > now()
+        SELECT r.*, COALESCE(d.restricted, TRUE) AS device_restricted
+        FROM query_results r
+        LEFT JOIN devices d ON d.name = r.device_name
+        WHERE r.id = $1 AND r.expires_at > now()
         """,
         result_id,
     )
