@@ -87,8 +87,8 @@ class TestDocsLinkInHeader:
         assert 'href="/api/docs"' in resp.text
 
     def test_link_hidden_when_global_is_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from bgpeek.main import app
         from bgpeek.core import templates as templates_mod
+        from bgpeek.main import app
 
         # ``header_links_for`` filters the docs entry based on
         # ``settings.docs_enabled`` at render time, so toggle it on the live
