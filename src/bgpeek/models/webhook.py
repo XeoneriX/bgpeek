@@ -39,15 +39,20 @@ class WebhookBase(BaseModel):
 
 
 _BLOCKED_NETWORKS = [
+    ip_network("0.0.0.0/8"),  # "this network" — Linux delivers 0.0.0.0 to 127.0.0.1
     ip_network("10.0.0.0/8"),
     ip_network("172.16.0.0/12"),
     ip_network("192.168.0.0/16"),
     ip_network("127.0.0.0/8"),
     ip_network("169.254.0.0/16"),  # link-local / cloud metadata
     ip_network("100.64.0.0/10"),  # CGNAT
+    ip_network("224.0.0.0/4"),  # multicast
+    ip_network("240.0.0.0/4"),  # reserved / future-use, incl. 255.255.255.255
+    ip_network("::/128"),  # IPv6 unspecified — ``http://[::]/`` routes to ::1 on Linux
     ip_network("::1/128"),
     ip_network("fc00::/7"),
     ip_network("fe80::/10"),
+    ip_network("ff00::/8"),  # IPv6 multicast
 ]
 
 
