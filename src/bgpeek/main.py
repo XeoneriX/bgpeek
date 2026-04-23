@@ -290,6 +290,27 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             )
             raise SystemExit(1)
 
+    if not settings.encryption_key:
+        if settings.debug:
+            log.warning(
+                "BGPEEK_ENCRYPTION_KEY not set — stored credentials will be saved in plaintext. "
+                "Acceptable in debug only; set BGPEEK_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())') for any real deployment."
+            )
+        else:
+            log.critical(
+                "BGPEEK_ENCRYPTION_KEY is required in non-debug mode — refusing to start. "
+                "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+            )
+            raise SystemExit(1)
+    else:
+        from cryptography.fernet import Fernet
+
+        try:
+            Fernet(settings.encryption_key.encode())
+        except Exception as exc:
+            log.critical("invalid BGPEEK_ENCRYPTION_KEY format", error=str(exc))
+            raise SystemExit(1) from exc
+
     await init_pool(
         settings.database_url,
         min_size=settings.db_pool_min,
