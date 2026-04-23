@@ -120,7 +120,6 @@
                     </button>
 
                     <button id="btn-abort" type="button" disabled
-                            onclick="htmx.trigger(document.getElementById('query-form'), 'htmx:abort')"
                             class="w-full rounded-md border border-slate-300 dark:border-slate-600
                                    text-slate-700 dark:text-slate-300
                                    px-4 py-2 text-sm font-medium
@@ -157,152 +156,12 @@
     </main>
 </div>
 
-<script>
-(function () {
-  "use strict";
-
-  var form        = document.getElementById("query-form");
-  var btnRun      = document.getElementById("btn-run");
-  var btnAbort    = document.getElementById("btn-abort");
-  var empty       = document.getElementById("empty-state");
-  var results     = document.getElementById("results");
-  var deviceSel   = document.getElementById("device-select");
-  var deviceCount = document.getElementById("device-count");
-  var labelSelected = "{{ t.n_selected }}";
-
-  /* ── Multi-select helpers ─────────────────────────────────────── */
-  function updateFormAction() {
-    var selected = deviceSel.selectedOptions.length;
-    if (selected > 1) {
-      form.setAttribute("hx-post", "/query/multi");
-    } else {
-      form.setAttribute("hx-post", "/query");
-    }
-    /* Re-process so HTMX picks up the changed attribute */
-    if (window.htmx) { htmx.process(form); }
-
-    /* Update counter */
-    if (selected > 0) {
-      deviceCount.textContent = selected + " " + labelSelected;
-    } else {
-      deviceCount.textContent = "";
-    }
-  }
-
-  deviceSel.addEventListener("change", updateFormAction);
-  // Sync form state on initial render (picks up server-side preselection).
-  updateFormAction();
-
-  /* ── Region filter ───────────────────────────────────────────── */
-  var regionFilter = document.getElementById("region-filter");
-  if (regionFilter) {
-    regionFilter.addEventListener("change", function () {
-      var selected = regionFilter.value;
-      var optgroups = deviceSel.querySelectorAll("optgroup");
-      var topOptions = deviceSel.querySelectorAll(":scope > option");
-
-      optgroups.forEach(function (og) {
-        og.style.display = (!selected || og.label === selected) ? "" : "none";
-        // Deselect hidden options
-        if (og.style.display === "none") {
-          Array.from(og.options).forEach(function (o) { o.selected = false; });
-        }
-      });
-
-      topOptions.forEach(function (o) {
-        o.style.display = selected ? "none" : "";
-        if (o.style.display === "none") { o.selected = false; }
-      });
-
-      updateFormAction();
-    });
-  }
-
-  /* ── Target validation (strip + format check) ────────────────── */
-  var targetEl = document.getElementById("target-input");
-  var targetErr = document.getElementById("target-error");
-  var msgInvalid = "{{ t.error_target_format }}";
-
-  // IPv4 (with optional /N), IPv6 (with optional /N), or hostname.
-  var RE_IPV4 = /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(?:\/(?:3[0-2]|[12]?\d))?$/;
-  var RE_IPV6 = /^(?:[0-9a-fA-F:]+)(?:\/(?:12[0-8]|1[01]\d|[1-9]?\d))?$/;
-  var RE_HOST = /^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
-
-  function isValidTarget(value) {
-    if (RE_IPV4.test(value)) return true;
-    if (RE_IPV6.test(value) && value.indexOf(":") !== -1) return true;
-    if (RE_HOST.test(value)) return true;
-    return false;
-  }
-
-  function clearTargetError() {
-    targetEl.classList.remove("border-rose-500", "dark:border-rose-500", "focus:border-rose-500", "focus:ring-rose-500");
-    targetErr.classList.add("hidden");
-    targetErr.textContent = "";
-  }
-
-  function showTargetError(msg) {
-    targetEl.classList.add("border-rose-500", "dark:border-rose-500", "focus:border-rose-500", "focus:ring-rose-500");
-    targetErr.classList.remove("hidden");
-    targetErr.textContent = msg;
-  }
-
-  // Strip on blur and input — protects against pasted whitespace surviving.
-  targetEl.addEventListener("input", clearTargetError);
-  targetEl.addEventListener("blur", function () {
-    targetEl.value = targetEl.value.trim();
-  });
-
-  form.addEventListener("htmx:beforeRequest", function (evt) {
-    var v = (targetEl.value || "").trim();
-    targetEl.value = v;
-    if (!isValidTarget(v)) {
-      evt.preventDefault();
-      evt.stopImmediatePropagation();  // skip the button-state toggle below
-      showTargetError(msgInvalid);
-      targetEl.focus();
-    }
-  });
-  form.addEventListener("htmx:configRequest", function (evt) {
-    if (typeof evt.detail.parameters.target === "string") {
-      evt.detail.parameters.target = evt.detail.parameters.target.trim();
-    }
-  });
-
-  /* ── Toggle Run/Abort state on HTMX lifecycle events ──────────── */
-  form.addEventListener("htmx:beforeRequest", function () {
-    btnRun.disabled   = true;
-    btnAbort.disabled = false;
-  });
-
-  form.addEventListener("htmx:afterRequest", function () {
-    btnRun.disabled   = false;
-    btnAbort.disabled = true;
-  });
-
-  /* ── Hide empty state once results appear ─────────────────────── */
-  var observer = new MutationObserver(function () {
-    empty.style.display = results.children.length ? "none" : "";
-  });
-  observer.observe(results, { childList: true });
-
-  /* ── Dynamic placeholder based on query type ──────────────── */
-  var targetInput = document.querySelector('input[name="target"]');
-  var queryTypeSelect = document.querySelector('select[name="query_type"]');
-
-  var placeholders = {
-    "bgp_route": "{{ t.placeholder_bgp }}",
-    "ping": "{{ t.placeholder_ping }}",
-    "traceroute": "{{ t.placeholder_trace }}"
-  };
-
-  function updatePlaceholder() {
-    var type = queryTypeSelect.value;
-    targetInput.placeholder = placeholders[type] || "8.8.8.0/24";
-  }
-
-  queryTypeSelect.addEventListener("change", updatePlaceholder);
-  updatePlaceholder();
-})();
-</script>
+<div id="query-config"
+     data-label-n-selected="{{ t.n_selected }}"
+     data-error-target-format="{{ t.error_target_format }}"
+     data-placeholder-bgp="{{ t.placeholder_bgp }}"
+     data-placeholder-ping="{{ t.placeholder_ping }}"
+     data-placeholder-trace="{{ t.placeholder_trace }}"
+     hidden></div>
+<script src="/static/js/index.js" defer></script>
 {% endblock %}
