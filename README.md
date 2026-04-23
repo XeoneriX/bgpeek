@@ -65,7 +65,25 @@ docker compose up -d
 open http://localhost:8000
 ```
 
-The default admin account is created on first startup. Check container logs for the initial credentials.
+### Creating the first admin
+
+bgpeek does not auto-create an admin account. Bootstrap the first admin by
+inserting a row directly, then use the admin UI / API for subsequent users:
+
+```bash
+# Generate a bcrypt hash for the password you want.
+docker compose exec bgpeek python -c \
+  "import bcrypt, sys; print(bcrypt.hashpw(b'<your-password>', bcrypt.gensalt()).decode())"
+
+# Insert the admin row.
+docker compose exec postgres psql -U bgpeek -c \
+  "INSERT INTO users (username, email, role, auth_provider, password_hash, enabled)
+   VALUES ('admin', 'admin@example.com', 'admin', 'local', '<hash-from-above>', TRUE);"
+```
+
+Alternatively, configure OIDC / LDAP and map a directory group to the `admin`
+role via `BGPEEK_OIDC_ROLE_MAPPING` / `BGPEEK_LDAP_ROLE_MAPPING` — the first
+login from that group lands with admin privileges.
 
 ## SSH Credentials
 
