@@ -143,7 +143,9 @@
     <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">{{ t.admin_devices_test_ssh_hint }}</p>
     <div class="flex items-center gap-3">
         <button type="button" id="test-ssh-btn"
-                onclick="bgpeekTestSSH({{ form.credential_id }}, {{ device_id }})"
+                data-cred-id="{{ form.credential_id }}"
+                data-device-id="{{ device_id }}"
+                data-running-label="{{ t.admin_devices_test_ssh_running }}"
                 class="rounded-md border border-slate-300 dark:border-slate-600
                        bg-white dark:bg-slate-700
                        text-slate-700 dark:text-slate-200
@@ -155,43 +157,6 @@
         <span id="test-ssh-result" class="text-sm"></span>
     </div>
 </div>
-
-<script>
-(function () {
-    "use strict";
-    window.bgpeekTestSSH = async function (credId, deviceId) {
-        var btn = document.getElementById("test-ssh-btn");
-        var out = document.getElementById("test-ssh-result");
-        btn.disabled = true;
-        out.textContent = "{{ t.admin_devices_test_ssh_running }}";
-        out.className = "text-sm text-slate-500 dark:text-slate-400";
-        try {
-            var resp = await fetch(
-                "/api/credentials/" + credId + "/test?device_id=" + deviceId,
-                { method: "POST", headers: { "Accept": "application/json" } }
-            );
-            if (!resp.ok) {
-                out.textContent = "✗ HTTP " + resp.status;
-                out.className = "text-sm text-rose-600 dark:text-rose-400";
-                return;
-            }
-            var data = await resp.json();
-            if (data.success) {
-                out.textContent = "✓ " + data.message;
-                out.className = "text-sm text-emerald-600 dark:text-emerald-400";
-            } else {
-                out.textContent = "✗ " + data.message;
-                out.className = "text-sm text-rose-600 dark:text-rose-400";
-            }
-        } catch (err) {
-            out.textContent = "✗ " + err;
-            out.className = "text-sm text-rose-600 dark:text-rose-400";
-        } finally {
-            btn.disabled = false;
-        }
-    };
-})();
-</script>
 {% elif device_id and not form.credential_id %}
 <div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 max-w-2xl">
     <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">{{ t.admin_devices_test_ssh }}</h2>
@@ -199,23 +164,5 @@
 </div>
 {% endif %}
 
-<script>
-(function () {
-    "use strict";
-    var platform = document.querySelector('select[name="platform"]');
-    var source4 = document.querySelector('input[name="source4"]');
-    var source6 = document.querySelector('input[name="source6"]');
-    var warning = document.getElementById("junos-source-warning");
-    if (!platform || !source4 || !source6 || !warning) return;
-    function update() {
-        var isJunos = platform.value === "juniper_junos";
-        var hasSource = source4.value.trim() !== "" || source6.value.trim() !== "";
-        warning.hidden = !(isJunos && !hasSource);
-    }
-    platform.addEventListener("change", update);
-    source4.addEventListener("input", update);
-    source6.addEventListener("input", update);
-    update();
-})();
-</script>
+<script src="/static/js/admin-devices-form.js" defer></script>
 {% endblock %}
