@@ -509,22 +509,30 @@ async def history(
     partial: int = 0,
     user: User | None = Depends(optional_auth),  # noqa: B008
 ) -> Response:
-    """Query history page with offset-based pagination."""
+    """Query history page with offset-based pagination.
+
+    Guest / anonymous callers never see global history. `list_results(user_id=None)`
+    is an admin-oversight code path; calling it from this public handler would
+    return the most recent results across all users. The public handler therefore
+    renders an empty list for anyone without a real user row.
+    """
     if user is None:
         if settings.access_mode == "closed":
             return RedirectResponse(url="/auth/login", status_code=303)
         if settings.access_mode == "guest":
             user = guest_user()
-    user_id = user.id if user and user.id != 0 else None
-    try:
-        results = await list_results(
-            get_pool(),
-            user_id=user_id,
-            limit=_HISTORY_PAGE_SIZE + 1,
-            offset=max(offset, 0),
-        )
-    except RuntimeError:
-        results = []
+    if user is None or user.id == 0:
+        results: list = []
+    else:
+        try:
+            results = await list_results(
+                get_pool(),
+                user_id=user.id,
+                limit=_HISTORY_PAGE_SIZE + 1,
+                offset=max(offset, 0),
+            )
+        except RuntimeError:
+            results = []
 
     has_more = len(results) > _HISTORY_PAGE_SIZE
     if has_more:
