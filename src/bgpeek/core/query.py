@@ -147,7 +147,7 @@ async def execute_query(
                 pass  # not a valid IP, DNS resolution may have failed
 
         # 1b. Check cache
-        cached = await get_cached(request)
+        cached = await get_cached(request, user_role=user_role)
         if cached is not None:
             runtime_ms = int((time.monotonic() - start) * 1000)
             cached.cached = True
@@ -308,7 +308,7 @@ async def execute_query(
         )
 
         # 10. Store in cache
-        await set_cached(request, response)
+        await set_cached(request, response, user_role=user_role)
 
         # 11. Dispatch webhook (fire-and-forget)
         from bgpeek.core.webhooks import dispatch_webhook

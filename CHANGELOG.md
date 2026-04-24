@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BGPEEK_ACCEPT_BARE_IP` (default `true`) — accept bare host addresses (e.g. `8.8.8.8`, `2001:4860:4860::8888`) as BGP query targets. The router performs longest-prefix-match and returns whichever covering prefix exists. The output filter still enforces `BGPEEK_MAX_PREFIX_V4/V6` on the response, so the prefix-length invariant holds for unprivileged roles. Set to `false` to restore pre-1.3.2 strict behaviour. See `docs/configuration.md` for a privacy note on the existence-oracle consideration.
 - UI hint when LPM match is hidden: if a bare-IP lookup resolves to a prefix more specific than the public cutoff, the result view now shows "Match hidden at your output level" instead of a silent empty result. Privileged roles (admin/NOC) still see the full entry.
 
+### Security
+
+- **Query cache is now scoped to the caller's role.** `_cache_key` previously built the Redis key from `{device_name, query_type, target}` only. Because admin / NOC callers bypass the output filter by design, `set_cached` stored an unfiltered response; a subsequent public-role caller hitting the same target within `BGPEEK_CACHE_TTL` (default 60s) would hit the same key and receive the admin payload, circumventing the prefix-length redaction invariant. The key now includes `user_role` (with `"anonymous"` for unauthenticated callers), so admin, NOC, public, and anonymous callers get independent cache entries. Pre-existing in v1.3.x / v1.4.0 but harder to trigger before bare-IP lookup; surfaced during pre-release regression against a live Junos deployment — admin query for a bare host cached a `/28`, subsequent guest hit served the `/28` instead of the expected `lpm_hidden` hint.
+
 ### Fixed
 
 - Bare IPv4 and IPv6 addresses are no longer rejected as "prefix too specific" at the input stage. This matched the behaviour of every other Looking Glass (hyperglass, alice-lg, vendor-native LGs) and blocked the common NetOps workflow of "I have an address, show me its BGP route." The security invariant — no /25+ routes visible to unprivileged roles — is preserved by the existing output filter.
