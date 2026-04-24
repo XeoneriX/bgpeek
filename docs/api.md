@@ -232,6 +232,14 @@ For BGP queries, `filtered_output` has prefixes longer than the configured
 field is cleared entirely and parsed_routes have communities, local_pref,
 and MED stripped. Admin and NOC roles see unfiltered output.
 
+BGP targets may be either an explicit prefix (`8.8.8.0/24`) or a bare host
+address (`8.8.8.8`, `2001:4860:4860::8888`). Bare addresses trigger a
+longest-prefix-match on the router and return whichever covering prefix exists.
+If the matched prefix is more-specific than the cutoff, it is still stripped
+from the public response and `lpm_hidden: true` is set on the response so
+clients can render a helpful hint. Set `BGPEEK_ACCEPT_BARE_IP=false` to
+reject bare addresses at the input stage instead.
+
 Hostname targets are automatically resolved to IP addresses before the query is
 sent to the device. The original hostname and resolved IP are both recorded.
 

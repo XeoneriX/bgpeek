@@ -139,13 +139,39 @@ def prefix_too_specific(
     return network.prefixlen > max_v6
 
 
+def is_host_lookup(network: IPv4Network | IPv6Network) -> bool:
+    """True if `network` is a single-address /32 (IPv4) or /128 (IPv6).
+
+    A bare IP like `8.8.8.8` (or `8.8.8.8/32`) encodes an address-lookup intent:
+    the router is expected to do a longest-prefix-match against its BGP table
+    and return whichever covering prefix exists. This is distinct from an
+    explicit prefix query like `8.8.8.0/25` which is already-specific by the
+    caller's choice.
+    """
+    if isinstance(network, IPv4Network):
+        return network.prefixlen == 32
+    return network.prefixlen == 128
+
+
 def validate_target(
     value: str,
     *,
     max_v4: int = DEFAULT_MAX_PREFIX_V4,
     max_v6: int = DEFAULT_MAX_PREFIX_V6,
+    accept_bare_ip: bool = True,
 ) -> IPv4Network | IPv6Network:
-    """Parse and validate a query target. Raises TargetValidationError on failure."""
+    """Parse and validate a query target. Raises TargetValidationError on failure.
+
+    When `accept_bare_ip` is True (default), bare host addresses
+    (/32, /128) bypass the prefix-length check — they are LPM lookup intents,
+    not explicit prefix selections. The output filter still enforces the
+    cutoff on whatever the router returns, so the `BGPEEK_MAX_PREFIX_V4/V6`
+    invariant holds at the response level.
+
+    When `accept_bare_ip` is False, host addresses are treated like any
+    other prefix and rejected if longer than `max_v4`/`max_v6` — this restores
+    the pre-v1.3.2 strict behavior for operators who prefer it.
+    """
     try:
         network = parse_target(value)
     except ValueError as exc:
@@ -166,7 +192,8 @@ def validate_target(
             "IPv6 target must be within Global Unicast range (2000::/3)", value
         )
 
-    if prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6):
+    host_lookup_bypass = accept_bare_ip and is_host_lookup(network)
+    if not host_lookup_bypass and prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6):
         raise TargetValidationError("prefix too specific", value)
 
     return network

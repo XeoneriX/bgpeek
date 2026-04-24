@@ -15,21 +15,29 @@ log = structlog.get_logger(__name__)
 _KEY_PREFIX = "bgpeek:cache:"
 
 
-def _cache_key(request: QueryRequest) -> str:
-    """Build a deterministic cache key from the query parameters."""
-    raw = f"{request.device_name}:{request.query_type.value}:{request.target}"
+def _cache_key(request: QueryRequest, user_role: str | None = None) -> str:
+    """Build a deterministic cache key from the query parameters and caller role.
+
+    The role is part of the key because privileged callers (admin/NOC) bypass
+    the output filter in ``execute_query``, so the cached ``QueryResponse``
+    contains different data than what a public caller is allowed to see.
+    Without a role-scoped key, a public caller hitting a recently-populated
+    admin entry for the same target would receive the unfiltered response.
+    """
+    role = user_role or "anonymous"
+    raw = f"{request.device_name}:{request.query_type.value}:{request.target}:{role}"
     digest = hashlib.sha256(raw.encode()).hexdigest()
     return f"{_KEY_PREFIX}{request.device_name}:{digest}"
 
 
-async def get_cached(request: QueryRequest) -> QueryResponse | None:
+async def get_cached(request: QueryRequest, user_role: str | None = None) -> QueryResponse | None:
     """Return cached response if present, otherwise ``None``."""
     try:
         r = get_redis()
     except RuntimeError:
         return None
 
-    key = _cache_key(request)
+    key = _cache_key(request, user_role)
     try:
         data = await r.get(key)
     except Exception:
@@ -46,6 +54,7 @@ async def get_cached(request: QueryRequest) -> QueryResponse | None:
 async def set_cached(
     request: QueryRequest,
     response: QueryResponse,
+    user_role: str | None = None,
     ttl: int | None = None,
 ) -> None:
     """Store a query response in cache with the given TTL (seconds)."""
@@ -57,7 +66,7 @@ async def set_cached(
     if ttl is None:
         ttl = settings.cache_ttl
 
-    key = _cache_key(request)
+    key = _cache_key(request, user_role)
     try:
         await r.set(key, response.model_dump_json(), ex=ttl)
         log.debug("cache_set", key=key, ttl=ttl)
