@@ -141,6 +141,7 @@ templates.env.globals["brand"] = {
     "site_name": _brand_site_name,
     "page_titles": settings.brand_page_titles,
     "logo_path": settings.brand_logo_path,
+    "logo_path_dark": settings.brand_logo_path_dark.strip(),
     "favicon_path": settings.brand_favicon_path,
     "theme_storage_key": settings.brand_theme_storage_key,
     "footer": _brand_footer,

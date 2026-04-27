@@ -3,7 +3,12 @@
     {% set resolved_header_links = header_links if header_links is defined else header_links_for(t, user) %}
     <div class="flex items-center gap-3">
         <a href="/" class="flex items-center gap-2">
+            {% if brand.logo_path_dark %}
+            <img src="{{ brand.logo_path }}" alt="" class="w-7 h-7 block dark:hidden" aria-hidden="true">
+            <img src="{{ brand.logo_path_dark }}" alt="" class="w-7 h-7 hidden dark:block" aria-hidden="true">
+            {% else %}
             <img src="{{ brand.logo_path }}" alt="" class="w-7 h-7" aria-hidden="true">
+            {% endif %}
             <span class="text-lg font-bold tracking-tight">{{ brand.site_name }}</span>
         </a>
         {% if header_section %}

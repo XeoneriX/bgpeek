@@ -259,6 +259,10 @@ class Settings(BaseSettings):
         default="/static/favicon.svg",
         description="Path or URL to the brand logo used in headers/login screens.",
     )
+    brand_logo_path_dark: str = Field(
+        default="",
+        description="Optional logo variant rendered when dark theme is active. Empty falls back to brand_logo_path. Same-origin paths avoid CSP changes; external URLs need img-src extension.",
+    )
     brand_favicon_path: str = Field(
         default="/static/favicon.svg",
         description="Path or URL to favicon file referenced by HTML pages.",

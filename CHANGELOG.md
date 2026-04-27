@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`BGPEEK_BRAND_LOGO_PATH_DARK`** — optional logo variant rendered when the dark theme is active. Empty (the default) keeps the previous behaviour of using `BGPEEK_BRAND_LOGO_PATH` for both themes. Same Tailwind `dark:` class strategy as the rest of the UI; no JS, no CSP changes when paths are same-origin. The Configuration → Branding section now also documents the three supported deploy patterns for serving custom logo/favicon files (bind-mount, reverse proxy, baked image).
+
 ## [1.4.0] - 2026-04-23
 
 ### Breaking

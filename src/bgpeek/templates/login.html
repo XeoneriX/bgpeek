@@ -8,7 +8,12 @@
         <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-8">
             {# Logo / app name #}
             <div class="flex items-center justify-center gap-2 mb-8">
+                {% if brand.logo_path_dark %}
+                <img src="{{ brand.logo_path }}" alt="" class="w-8 h-8 block dark:hidden" aria-hidden="true">
+                <img src="{{ brand.logo_path_dark }}" alt="" class="w-8 h-8 hidden dark:block" aria-hidden="true">
+                {% else %}
                 <img src="{{ brand.logo_path }}" alt="" class="w-8 h-8" aria-hidden="true">
+                {% endif %}
                 <span class="text-xl font-bold tracking-tight">{{ brand.site_name }}</span>
             </div>
 

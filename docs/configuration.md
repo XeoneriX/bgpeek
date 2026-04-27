@@ -218,6 +218,7 @@ Status is `degraded` if any backend is unreachable.
 | `BGPEEK_BRAND_PAGE_TITLES` | `{}` | JSON object with per-page title suffix overrides (text after `·`) without modifying language files. Supported keys: `index`, `login`, `history`, `result_page` |
 | `BGPEEK_BRAND_SITE_DESCRIPTION` | `Open-source looking glass for ISPs and IX operators` | OpenAPI/UI description text |
 | `BGPEEK_BRAND_LOGO_PATH` | `/static/favicon.svg` | Logo path/URL for header and login brand icon |
+| `BGPEEK_BRAND_LOGO_PATH_DARK` | _(empty)_ | Optional logo variant rendered when dark theme is active. When empty, `BGPEEK_BRAND_LOGO_PATH` is used for both themes |
 | `BGPEEK_BRAND_FAVICON_PATH` | `/static/favicon.svg` | Favicon path/URL for browser tab icon |
 | `BGPEEK_BRAND_THEME_STORAGE_KEY` | `bgpeek-theme` | Browser localStorage key used for dark/light preference; set a unique value per installation to isolate theme preferences between deployments |
 | `BGPEEK_BRAND_FOOTER` | _(empty)_ | Optional footer HTML shown after a `·` separator; when empty, no suffix/separator is shown |
@@ -232,6 +233,59 @@ BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home"}'
 # Override all supported pages:
 BGPEEK_BRAND_PAGE_TITLES='{"index":"AS152183 Home","login":"sign in","history":"query history","result_page":"shared result"}'
 ```
+
+### Serving custom logo / favicon files
+
+Three patterns work without code changes — pick the one that fits your deploy.
+
+**A. Bind-mount into the bgpeek container (recommended default):**
+
+bgpeek already serves `/static/` via FastAPI; mount your branding directory under it.
+
+```yaml
+# compose.override.yaml
+services:
+  bgpeek:
+    volumes:
+      - ./branding:/app/static/custom:ro
+```
+
+```bash
+# .env
+BGPEEK_BRAND_LOGO_PATH=/static/custom/logo.svg
+BGPEEK_BRAND_LOGO_PATH_DARK=/static/custom/logo-inverse.svg
+BGPEEK_BRAND_FAVICON_PATH=/static/custom/favicon.png
+```
+
+Same-origin — no CSP changes. Update files in `./branding/` and restart the container if you need to bust browser cache.
+
+**B. Reverse proxy serves the static files:**
+
+If you already front bgpeek with nginx/Caddy, let the proxy serve them — typically faster than ASGI:
+
+```nginx
+location /branding/ {
+    alias /opt/bgpeek/branding/;
+    expires 1d;
+}
+```
+
+```bash
+BGPEEK_BRAND_LOGO_PATH=/branding/logo.svg
+BGPEEK_BRAND_LOGO_PATH_DARK=/branding/logo-inverse.svg
+BGPEEK_BRAND_FAVICON_PATH=/branding/favicon.png
+```
+
+**C. Bake the assets into a derived image (immutable deploys):**
+
+```dockerfile
+FROM ghcr.io/xeonerix/bgpeek:latest
+COPY branding/ /app/static/custom/
+```
+
+Logo changes require a rebuild — useful only when the deploy flow forbids volumes.
+
+**External CDN URLs:** `BGPEEK_BRAND_LOGO_PATH=https://cdn.example.com/logo.svg` works only if the host is allowed by CSP `img-src`. The default policy permits `'self'` and `data:` URIs only — keep logos same-origin (Variants A/B/C above) to avoid CSP customization.
 
 ## Other
 
