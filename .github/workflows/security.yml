@@ -12,5 +12,8 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --extra dev
-      - run: uv run pip-audit
+      # CVE-2026-3219 affects pip 26.0.1 with no fix available upstream;
+      # bgpeek does not invoke pip at runtime, so the audit is not actionable yet.
+      # Drop the ignore once a fixed pip lands.
+      - run: uv run pip-audit --ignore-vuln CVE-2026-3219
       - run: uv run bandit -r src/

@@ -53,7 +53,22 @@ def test_parse_lg_links_filters_invalid_entries() -> None:
         mock_settings.lg_links = raw
         assert _parse_lg_links() == [
             {"name": "Example LG", "url": "https://lg.example.com"},
-            {"name": "42", "url": "9001"},
+        ]
+
+
+def test_parse_lg_links_rejects_non_http_schemes() -> None:
+    raw = (
+        '[{"name":"OK","url":"https://lg.example.com"},'
+        ' {"name":"OK plain","url":"http://lg.example.org"},'
+        ' {"name":"XSS","url":"javascript:alert(1)"},'
+        ' {"name":"Data","url":"data:text/html,<script>1</script>"},'
+        ' {"name":"Relative","url":"/local"}]'
+    )
+    with patch("bgpeek.main.settings") as mock_settings:
+        mock_settings.lg_links = raw
+        assert _parse_lg_links() == [
+            {"name": "OK", "url": "https://lg.example.com"},
+            {"name": "OK plain", "url": "http://lg.example.org"},
         ]
 
 

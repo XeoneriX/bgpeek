@@ -64,8 +64,15 @@ def _parse_lg_links() -> list[dict[str, str]]:
         return []
     result: list[dict[str, str]] = []
     for entry in links:
-        if isinstance(entry, dict) and "name" in entry and "url" in entry:
-            result.append({"name": str(entry["name"]), "url": str(entry["url"])})
+        if not (isinstance(entry, dict) and "name" in entry and "url" in entry):
+            continue
+        url = str(entry["url"]).strip()
+        # Reject anything that is not http(s) — the URL is rendered into an <a href>
+        # without escaping the scheme, so `javascript:` would execute on click.
+        if not url.lower().startswith(("http://", "https://")):
+            log.warning("lg_links entry rejected: non-http(s) URL", name=entry.get("name"), url=url)
+            continue
+        result.append({"name": str(entry["name"]), "url": url})
     return result
 
 

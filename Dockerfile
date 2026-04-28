@@ -48,6 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libffi8 \
       openssl \
       ca-certificates \
+      curl \
       tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 bgpeek \
@@ -67,6 +68,9 @@ ENV PATH="/opt/venv/bin:$PATH" \
     BGPEEK_PORT=8000
 
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${BGPEEK_PORT}/api/health" || exit 1
 
 USER bgpeek
 
