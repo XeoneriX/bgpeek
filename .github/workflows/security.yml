@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Trivy filesystem scan (HIGH+CRITICAL deps)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Trivy IaC + Dockerfile scan (HIGH+CRITICAL)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: config
           scan-ref: .
