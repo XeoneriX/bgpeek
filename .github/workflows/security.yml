@@ -16,4 +16,29 @@ jobs:
       # bgpeek does not invoke pip at runtime, so the audit is not actionable yet.
       # Drop the ignore once a fixed pip lands.
       - run: uv run pip-audit --ignore-vuln CVE-2026-3219
-      - run: uv run bandit -r src/
+      - run: uv run bandit -c bandit.yaml -ll -r src/
+
+  trivy-fs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Trivy filesystem scan (HIGH+CRITICAL deps)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+  trivy-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Trivy IaC + Dockerfile scan (HIGH+CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'

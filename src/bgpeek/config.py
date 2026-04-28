@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     # --- Server ---
-    host: str = "0.0.0.0"  # noqa: S104  # bind all interfaces in container
+    host: str = "0.0.0.0"  # noqa: S104  # nosec B104 — bind all interfaces in container
     port: int = 8000
     workers: int = 1
     debug: bool = False

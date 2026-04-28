@@ -111,14 +111,14 @@ def annotate(community: str) -> Markup:
     entry = _find_match(community)
     esc_comm = escape(community)
     if entry is None:
-        return Markup(esc_comm)  # noqa: S704 — value is html.escape()'d
+        return Markup(esc_comm)  # noqa: S704  # nosec B704 — value is html.escape()'d
 
     esc_label = escape(entry.label)
     light, dark = _resolve_pair(entry.color)
 
     # CSS variable --c is set to the light value, overridden under .dark
     # by a rule in the page <style> block. The span uses var(--c).
-    return Markup(  # noqa: S704 — all interpolated values are html.escape()'d
+    return Markup(  # noqa: S704  # nosec B704 — all interpolated values are html.escape()'d
         f'<span class="cl" style="--cl:{light};--cd:{dark}">{esc_comm} ({esc_label})</span>'
     )
 
