@@ -7,6 +7,7 @@ import pytest
 from bgpeek.core.commands import (
     UnsupportedPlatformError,
     build_command,
+    supported_optional_flags,
     supported_platforms,
     target_family,
 )
@@ -123,6 +124,84 @@ def test_huawei_source_uses_dash_a() -> None:
 def test_sixwind_os_source_uses_source_keyword() -> None:
     cmd = build_command("sixwind_os", QueryType.PING, "8.8.8.8", source_ip="10.0.0.1")
     assert cmd == "cmd ping 8.8.8.8 count 6 source 10.0.0.1"
+
+
+# --- Optional flags: no_resolve -----------------------------------------------
+
+
+def test_junos_traceroute_v4_no_resolve_appended() -> None:
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=True)
+    assert cmd.endswith(" no-resolve")
+    assert cmd.startswith("traceroute monitor 8.8.8.8 ")
+
+
+def test_junos_traceroute_v6_no_resolve_appended() -> None:
+    cmd = build_command(
+        "juniper_junos", QueryType.TRACEROUTE, "2001:4860:4860::8888", no_resolve=True
+    )
+    assert "inet6" in cmd
+    assert cmd.endswith(" no-resolve")
+
+
+def test_no_resolve_with_source_ip_both_appended() -> None:
+    cmd = build_command(
+        "juniper_junos",
+        QueryType.TRACEROUTE,
+        "8.8.8.8",
+        source_ip="10.0.0.1",
+        no_resolve=True,
+    )
+    # Both flags present; order is source then no-resolve (insertion order in
+    # build_command), but the test asserts containment, not strict order, to
+    # leave room for future flag-ordering tweaks without breaking.
+    assert " source 10.0.0.1" in cmd
+    assert " no-resolve" in cmd
+
+
+def test_no_resolve_false_does_not_append() -> None:
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=False)
+    assert "no-resolve" not in cmd
+
+
+def test_no_resolve_default_is_off() -> None:
+    """Belt-and-braces: omitting the kwarg must equal no_resolve=False."""
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8")
+    assert "no-resolve" not in cmd
+
+
+def test_no_resolve_silently_ignored_on_unsupported_platform() -> None:
+    """Cisco IOS doesn't have a no_resolve entry yet — flag must be a no-op,
+    not raise. The deploy-wide env knob has to work across mixed fleets."""
+    cmd = build_command("cisco_ios", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=True)
+    assert cmd == "traceroute 8.8.8.8"
+
+
+def test_no_resolve_ignored_on_bgp_route() -> None:
+    """no_resolve only meaningful for traceroute; BGP_ROUTE entries don't
+    declare it, so the flag is a no-op there too."""
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "8.8.8.0/24", no_resolve=True)
+    assert "no-resolve" not in cmd
+
+
+# --- Capability introspection -------------------------------------------------
+
+
+def test_supported_optional_flags_junos_traceroute() -> None:
+    flags = supported_optional_flags("juniper_junos", QueryType.TRACEROUTE)
+    assert flags == {"source", "no_resolve"}
+
+
+def test_supported_optional_flags_junos_ping_lacks_no_resolve() -> None:
+    """ping no-resolve is a separate Junos flag — not yet wired, so capability
+    must reflect that to keep UI/audit honest."""
+    flags = supported_optional_flags("juniper_junos", QueryType.PING)
+    assert "source" in flags
+    assert "no_resolve" not in flags
+
+
+def test_supported_optional_flags_unknown_pair_returns_empty() -> None:
+    flags = supported_optional_flags("nokia_sros", QueryType.PING)
+    assert flags == set()
 
 
 # --- Errors -------------------------------------------------------------------

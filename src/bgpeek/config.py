@@ -221,6 +221,18 @@ class Settings(BaseSettings):
     ssh_timeout_traceroute: int = Field(
         default=120, description="SSH timeout for traceroute commands"
     )
+    traceroute_no_resolve: bool = Field(
+        default=False,
+        description=(
+            "Append the per-platform `no-resolve` (or equivalent) flag to "
+            "every traceroute command, suppressing reverse-DNS lookup of "
+            "intermediate hops. Default off to preserve OSS-friendly "
+            "behaviour; operators who prefer numeric output by default "
+            "(faster, less noisy) flip this in their .env. Platforms whose "
+            "traceroute syntax doesn't expose a no-resolve flag silently "
+            "ignore the setting."
+        ),
+    )
     ssh_known_hosts_policy: str = Field(
         default="auto-add",
         description="Host key policy: 'auto-add' (accept new keys) or 'strict' (reject unknown)",

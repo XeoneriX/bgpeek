@@ -76,17 +76,46 @@ _COMMAND_TABLE: dict[tuple[str, QueryType, Family], str] = {
     ("sixwind_os", QueryType.TRACEROUTE, "v6"): "cmd traceroute {target}",
 }
 
-# Per-platform source argument format for ping/traceroute. Same syntax for
-# both families on every platform we currently support — Junos `inet6` /
-# Cisco `ipv6` keywords already select the family on the command itself.
-_SOURCE_FORMAT: dict[str, str] = {
-    "juniper_junos": " source {source}",
-    "cisco_ios": " source {source}",
-    "cisco_xe": " source {source}",
-    "cisco_xr": " source {source}",
-    "arista_eos": " source {source}",
-    "huawei": " -a {source}",
-    "sixwind_os": " source {source}",
+# Optional per-(platform, query_type) command flags. Each inner dict maps a
+# logical flag name (e.g. "source", "no_resolve") to a suffix template. Suffix
+# strings may use {value} for parameterised flags (source-IP) or be plain
+# constants for boolean flags (no_resolve).
+#
+# Platforms or (platform, query_type) pairs absent from the dict simply have
+# no optional flags — passing the flag is a no-op rather than an error, so
+# 6WIND-style "doesn't support no-resolve" platforms degrade silently.
+#
+# Adding a new flag: append a key under the relevant (platform, query_type)
+# entries. Adding a new platform's support: same. The flag is wired into
+# `build_command` once via a kwarg; entries here are the per-platform truth.
+_OPTIONAL_FLAGS: dict[tuple[str, QueryType], dict[str, str]] = {
+    # --- Juniper Junos ---
+    ("juniper_junos", QueryType.PING): {
+        "source": " source {value}",
+    },
+    ("juniper_junos", QueryType.TRACEROUTE): {
+        "source": " source {value}",
+        # `traceroute monitor … no-resolve` confirmed working on the operator's
+        # MX-series prod box — appended at the end of the existing template.
+        "no_resolve": " no-resolve",
+    },
+    # --- Cisco IOS / IOS-XE ---
+    ("cisco_ios", QueryType.PING): {"source": " source {value}"},
+    ("cisco_ios", QueryType.TRACEROUTE): {"source": " source {value}"},
+    ("cisco_xe", QueryType.PING): {"source": " source {value}"},
+    ("cisco_xe", QueryType.TRACEROUTE): {"source": " source {value}"},
+    # --- Cisco IOS-XR ---
+    ("cisco_xr", QueryType.PING): {"source": " source {value}"},
+    ("cisco_xr", QueryType.TRACEROUTE): {"source": " source {value}"},
+    # --- Arista EOS ---
+    ("arista_eos", QueryType.PING): {"source": " source {value}"},
+    ("arista_eos", QueryType.TRACEROUTE): {"source": " source {value}"},
+    # --- Huawei VRP ---
+    ("huawei", QueryType.PING): {"source": " -a {value}"},
+    ("huawei", QueryType.TRACEROUTE): {"source": " -a {value}"},
+    # --- 6WIND VSR ---
+    ("sixwind_os", QueryType.PING): {"source": " source {value}"},
+    ("sixwind_os", QueryType.TRACEROUTE): {"source": " source {value}"},
 }
 
 
@@ -114,24 +143,42 @@ def target_family(target: str) -> Family:
 
 
 def build_command(
-    platform: str, query_type: QueryType, target: str, *, source_ip: str | None = None
+    platform: str,
+    query_type: QueryType,
+    target: str,
+    *,
+    source_ip: str | None = None,
+    no_resolve: bool = False,
 ) -> str:
     """Return the CLI command string for a given platform, query type, and target.
 
     Picks IPv4- or IPv6-flavoured command syntax based on the target address
-    family. Adds a per-platform ``source`` argument when ``source_ip`` is
-    provided and the query type is ping or traceroute.
+    family. Optional flags (``source_ip``, ``no_resolve``) are appended only
+    when the (platform, query_type) pair declares support in
+    ``_OPTIONAL_FLAGS``; unsupported flags degrade to no-ops rather than
+    errors, so a deploy-wide knob like ``BGPEEK_TRACEROUTE_NO_RESOLVE`` works
+    safely across a heterogeneous device fleet.
     """
     family = target_family(target)
     template = _COMMAND_TABLE.get((platform, query_type, family))
     if template is None:
         raise UnsupportedPlatformError(platform, query_type, family)
     cmd = template.format(target=target)
-    if source_ip and query_type in (QueryType.PING, QueryType.TRACEROUTE):
-        fmt = _SOURCE_FORMAT.get(platform)
-        if fmt:
-            cmd += fmt.format(source=source_ip)
+    flags = _OPTIONAL_FLAGS.get((platform, query_type), {})
+    if source_ip and "source" in flags:
+        cmd += flags["source"].format(value=source_ip)
+    if no_resolve and "no_resolve" in flags:
+        cmd += flags["no_resolve"]
     return cmd
+
+
+def supported_optional_flags(platform: str, query_type: QueryType) -> set[str]:
+    """Return the set of optional-flag names the given (platform, query_type) accepts.
+
+    Used by capability-aware callers (UI checkbox state, audit fields) to
+    distinguish "flag was honoured" from "flag was silently ignored".
+    """
+    return set(_OPTIONAL_FLAGS.get((platform, query_type), {}).keys())
 
 
 def supported_platforms() -> list[str]:

@@ -201,9 +201,16 @@ async def execute_query(
         except ValueError:
             pass  # not a valid IP (shouldn't happen after DNS resolution)
 
-        # Build command (use resolved IP for the actual SSH command)
+        # Build command (use resolved IP for the actual SSH command).
+        # `no_resolve` is a deploy-wide knob; it's harmless to forward to
+        # non-traceroute query types because build_command honours flags
+        # only when the (platform, query_type) pair declares support.
         command = build_command(
-            device.platform, request.query_type, effective_target, source_ip=device_source_ip
+            device.platform,
+            request.query_type,
+            effective_target,
+            source_ip=device_source_ip,
+            no_resolve=settings.traceroute_no_resolve,
         )
 
         # 4. Resolve SSH credentials: device-level → global default → fail
