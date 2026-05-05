@@ -46,7 +46,7 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
         log.warning(
             "webhook_target_blocked",
             webhook=webhook.name,
-            event=event.value,
+            webhook_event=event.value,
             reason=str(exc),
         )
         return
@@ -83,7 +83,7 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
             log.warning(
                 "webhook_http_error",
                 webhook=webhook.name,
-                event=event.value,
+                webhook_event=event.value,
                 status=resp.status_code,
                 attempt=attempt + 1,
             )
@@ -91,7 +91,7 @@ async def _deliver(webhook: Webhook, body: bytes, event: WebhookEvent) -> None:
             log.warning(
                 "webhook_delivery_failed",
                 webhook=webhook.name,
-                event=event.value,
+                webhook_event=event.value,
                 attempt=attempt + 1,
                 exc_info=True,
             )
