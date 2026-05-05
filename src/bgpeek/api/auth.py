@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import urlparse
 
 import asyncpg
 import jwt as pyjwt
 import structlog
-from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi_csrf_protect import CsrfProtect
 
@@ -50,6 +51,20 @@ def _normalize_email(raw: str) -> str | None:
     """Normalize optional email form value."""
     value = raw.strip()
     return value or None
+
+
+def _safe_next(next_url: str | None) -> str | None:
+    """Return ``next_url`` only if it's a same-origin relative path.
+
+    Rejects empty, protocol-relative (``//evil``), and absolute URLs to avoid
+    open-redirect on the post-login bounce.
+    """
+    if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
+        return None
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return next_url
 
 
 def _render_account_settings(
@@ -117,6 +132,7 @@ def _render_account_settings_with_csrf(
 async def login_page(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+    next_url: str | None = Query(default=None, alias="next"),  # noqa: B008
 ) -> HTMLResponse:
     """Render the login form."""
     csrf_token, signed_token = issue_csrf_token(csrf_protect)
@@ -130,6 +146,7 @@ async def login_page(
             "oidc_enabled": settings.oidc_enabled,
             "allow_guest_continue": settings.access_mode in ("guest", "open"),
             "csrf_token": csrf_token,
+            "next_url": _safe_next(next_url),
         },
     )
     set_csrf_cookie(csrf_protect, response, signed_token)
@@ -143,6 +160,7 @@ async def login_submit(
     csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     username: str = Form(),  # noqa: B008
     password: str = Form(),  # noqa: B008
+    next_url: str | None = Form(default=None, alias="next"),  # noqa: B008
     _rl: None = Depends(rate_limit_login),  # noqa: B008
 ) -> Response:
     """Handle web login form submission."""
@@ -205,6 +223,7 @@ async def login_submit(
                 "oidc_enabled": settings.oidc_enabled,
                 "allow_guest_continue": settings.access_mode in ("guest", "open"),
                 "csrf_token": csrf_token,
+                "next_url": _safe_next(next_url),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -220,7 +239,8 @@ async def login_submit(
     token = create_token(user.id, user.username, user.role.value)
     max_age = settings.jwt_expire_minutes * 60
 
-    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    redirect_target = _safe_next(next_url) or "/"
+    redirect_response = RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
     redirect_response.set_cookie(
         key=_COOKIE_NAME,
         value=token,

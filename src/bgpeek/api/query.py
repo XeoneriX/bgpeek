@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 import uuid
 from pathlib import Path
+from urllib.parse import urlencode
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from bgpeek.config import settings
 from bgpeek.core.auth import authenticate, guest_user, optional_auth
@@ -383,14 +384,25 @@ async def result_page(
     request: Request,
     result_id: uuid.UUID,
     user: User | None = Depends(optional_auth),  # noqa: B008
-) -> HTMLResponse:
-    """Render a standalone HTML page for a shared result."""
+) -> Response:
+    """Render a standalone HTML page for a shared result.
+
+    Anonymous callers are bounced through ``/auth/login?next=…`` so they can
+    sign in and land back on the same permalink. Authenticated callers who
+    can't see the result get a 404 — never 403 — so result-IDs can't be
+    enumerated by status code.
+    """
     stored = await get_result(get_pool(), result_id)
-    if stored is not None and not _may_view_stored_result(stored, user):
-        stored = None
+    if stored is None or not _may_view_stored_result(stored, user):
+        if user is None:
+            target = f"/result/{result_id}"
+            return RedirectResponse(
+                url=f"/auth/login?{urlencode({'next': target})}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Result not found or expired.")
     role = user.role.value if user else None
-    if stored is not None:
-        stored = filter_stored_result(stored, role)
+    stored = filter_stored_result(stored, role)
     return templates.TemplateResponse(
         request=request,
         name="result_page.html",

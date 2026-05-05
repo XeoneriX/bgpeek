@@ -491,6 +491,103 @@ class TestWebLogin:
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         revoke_spy.assert_not_awaited()
 
+    def test_safe_next_accepts_relative_path(self) -> None:
+        from bgpeek.api.auth import _safe_next
+
+        assert _safe_next("/result/abc") == "/result/abc"
+        assert _safe_next("/account/settings") == "/account/settings"
+
+    def test_safe_next_rejects_open_redirect(self) -> None:
+        """`//host` and absolute URLs must not bounce users off-site."""
+        from bgpeek.api.auth import _safe_next
+
+        assert _safe_next(None) is None
+        assert _safe_next("") is None
+        assert _safe_next("//evil.example.com") is None
+        assert _safe_next("https://evil.example.com/path") is None
+        assert _safe_next("javascript:alert(1)") is None
+        assert _safe_next("relative/no-leading-slash") is None
+
+    def test_login_page_with_next_passes_to_template(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        client = TestClient(app)
+        resp = client.get("/auth/login?next=/result/abc-123")
+        assert resp.status_code == status.HTTP_200_OK
+        assert 'name="next" value="/result/abc-123"' in resp.text
+
+    def test_login_page_strips_unsafe_next(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        client = TestClient(app)
+        resp = client.get("/auth/login?next=//evil.example.com/path")
+        assert resp.status_code == status.HTTP_200_OK
+        assert 'name="next"' not in resp.text
+
+    def test_login_success_with_next_redirects_to_next(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        with (
+            self._patch_api_pool(),
+            self._patch_credentials(_LOCAL_USER),
+            self._patch_ldap(),
+            self._patch_log_audit(),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login?next=/result/abc")
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post(
+                "/auth/login",
+                data={
+                    "username": "local-user",
+                    "password": "secret123",
+                    "csrf_token": csrf_token,
+                    "next": "/result/abc",
+                },
+            )
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        assert resp.headers["location"] == "/result/abc"
+
+    def test_login_success_with_unsafe_next_falls_back_to_root(self) -> None:
+        from bgpeek.api.auth import router as auth_router
+        from bgpeek.main import I18nMiddleware
+
+        app = FastAPI()
+        app.add_middleware(I18nMiddleware)
+        app.include_router(auth_router)
+        with (
+            self._patch_api_pool(),
+            self._patch_credentials(_LOCAL_USER),
+            self._patch_ldap(),
+            self._patch_log_audit(),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            csrf_page = client.get("/auth/login")
+            csrf_token = _extract_csrf_token(csrf_page.text)
+            resp = client.post(
+                "/auth/login",
+                data={
+                    "username": "local-user",
+                    "password": "secret123",
+                    "csrf_token": csrf_token,
+                    "next": "https://evil.example.com/path",
+                },
+            )
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        assert resp.headers["location"] == "/"
+
     def test_logout_with_expired_cookie_does_not_raise(self) -> None:
         """An expired or tampered cookie on logout must not 500 — logout is a
         user-initiated action and must always succeed."""
