@@ -12,7 +12,11 @@ from bgpeek.config import settings
 from bgpeek.core.bgp_parser import parse_bgp_output
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.circuit_breaker import is_device_available, record_failure, record_success
-from bgpeek.core.commands import UnsupportedPlatformError, build_command
+from bgpeek.core.commands import (
+    UnsupportedPlatformError,
+    build_command,
+    supported_optional_flags,
+)
 from bgpeek.core.dns import DNSResolutionError, resolve_target
 from bgpeek.core.output_filter import filter_route_text, strip_router_banners
 from bgpeek.core.rpki import validate_routes
@@ -212,6 +216,21 @@ async def execute_query(
             source_ip=device_source_ip,
             no_resolve=settings.traceroute_no_resolve,
         )
+
+        # Observability for the BGPEEK_TRACEROUTE_NO_RESOLVE knob:
+        # `requested` is what the operator set in env, `effective` is whether
+        # the platform declared support — surfacing both lets ops grep
+        # VictoriaLogs to confirm the knob actually fires (vs. silently
+        # ignored on a platform without a no_resolve entry).
+        if request.query_type == QueryType.TRACEROUTE and settings.traceroute_no_resolve:
+            log.info(
+                "traceroute_no_resolve",
+                device=device.name,
+                platform=device.platform,
+                no_resolve_requested=True,
+                no_resolve_effective="no_resolve"
+                in supported_optional_flags(device.platform, QueryType.TRACEROUTE),
+            )
 
         # 4. Resolve SSH credentials: device-level → global default → fail
         ssh_user = settings.ssh_username
