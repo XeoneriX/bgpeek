@@ -58,7 +58,7 @@
       optgroups.forEach(function (og) {
         og.style.display = !selected || og.label === selected ? "" : "none";
         if (og.style.display === "none") {
-          Array.from(og.options).forEach(function (o) {
+          og.querySelectorAll("option").forEach(function (o) {
             o.selected = false;
           });
         }
