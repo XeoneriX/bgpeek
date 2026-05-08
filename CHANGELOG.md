@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Per-key action scopes (Phase 1).** Each user row now carries an optional `allowed_actions` JSONB column with default-deny semantics. `NULL` (the default for every existing user, the LDAP/OIDC upsert paths, and any `POST /api/users` body that omits the field) preserves the legacy role-based authorisation path. A non-null array (e.g. `["users:create", "users:read"]`) restricts the user to exactly the listed actions plus any namespace wildcards (`users:*`, `query:history:*`, `*`). The format is enforced both at the Pydantic edge and by a database `CHECK` constraint; cross-resource forms (`*:action`) and uppercase / non-ASCII identifiers are rejected. Every protected endpoint on the REST and admin-UI surface is tagged with the action it serves; scoped tokens hitting an untagged endpoint are denied with HTTP 403 (default-deny) and a `scope_violation` audit row, so a developer who forgets to tag a new endpoint cannot silently leak it. A scoped caller's `POST /api/users` request that would mint a user with wider scopes than their own — including a legacy unrestricted admin — is rejected with HTTP 403 and a `privilege_escalation_attempt` audit row. Designed against threats T1, T1', T2, T3, T4, T5, T6, T7, T8, T9, and T10 in the internal threat model.
+
 ### Added
 
 - **`BGPEEK_BRAND_LOGO_PATH_DARK`** — optional logo variant rendered when the dark theme is active. Empty (the default) keeps the previous behaviour of using `BGPEEK_BRAND_LOGO_PATH` for both themes. Same Tailwind `dark:` class strategy as the rest of the UI; no JS, no CSP changes when paths are same-origin. The Configuration → Branding section now also documents the three supported deploy patterns for serving custom logo/favicon files (bind-mount, reverse proxy, baked image).
 - **`BGPEEK_MIN_PREFIX_V4`** (default `8`) and **`BGPEEK_MIN_PREFIX_V6`** (default `16`) — shortest prefix length accepted on BGP-route queries. `/0..7` IPv4 and `/0..15` IPv6 lookups walk the entire DFZ on the router, are useless to any role (operators want specific prefixes; the public output filter already hides /25–/32), and are a low-effort DoS vector. Set either to `0` to disable. Startup also rejects `min > max` for either family with a clear error — previously such a misconfiguration would reject every BGP query with no obvious indicator the bound was the cause.
+- **`allowed_actions` on `POST /api/users`** — optional list of action scope strings (`["resource:action", ...]`). Omit (or pass `null`) to keep the legacy role-based authorisation behaviour for the new user. The plaintext API key returned in the 201 response carries the same show-once contract as before; subsequent reads never expose it. Two new `AuditAction` values — `scope_violation` and `privilege_escalation_attempt` — surface scoped-token misuse in the audit log.
 
 ### Changed
 
