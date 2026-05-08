@@ -118,12 +118,18 @@ async def list_users(pool: asyncpg.Pool) -> list[User]:
     return [User.model_validate(dict(r)) for r in rows]
 
 
+# `allowed_actions` is INTENTIONALLY excluded from this set. Mutating scopes
+# via the generic update path would skip the `_enforce_subsumption` guard in
+# api/auth.py, so a Phase 2 PATCH endpoint that simply piped the request body
+# into `UserUpdate` and then `crud.update_user` would let a scoped caller
+# silently grant themselves wider scopes — a one-line privilege escalation.
+# Phase 2 must add a dedicated `update_user_actions(pool, user_id, actions)`
+# function that bakes subsumption in, and a corresponding `UserActionsUpdate`
+# input model. Until then, attempting to update `allowed_actions` via this
+# path raises ValueError.
 _UPDATABLE_COLUMNS: frozenset[str] = frozenset(
-    {"username", "email", "role", "enabled", "allowed_actions"}
+    {"username", "email", "role", "enabled"}
 )
-# Columns whose value must reach asyncpg as a JSON string with a `::jsonb` cast,
-# rather than as a Python list/dict that asyncpg would try to encode as TEXT.
-_JSONB_COLUMNS: frozenset[str] = frozenset({"allowed_actions"})
 
 
 async def update_user(pool: asyncpg.Pool, user_id: int, payload: UserUpdate) -> User | None:
@@ -137,12 +143,8 @@ async def update_user(pool: asyncpg.Pool, user_id: int, payload: UserUpdate) -> 
     for idx, (column, value) in enumerate(fields.items(), start=1):
         if column not in _UPDATABLE_COLUMNS:
             raise ValueError(f"refusing to update unknown column: {column!r}")
-        if column in _JSONB_COLUMNS:
-            set_clause_parts.append(f"{column} = ${idx}::jsonb")
-            values.append(_serialise_actions(value) if value is not None else None)
-        else:
-            set_clause_parts.append(f"{column} = ${idx}")
-            values.append(value)
+        set_clause_parts.append(f"{column} = ${idx}")
+        values.append(value)
     set_clause = ", ".join(set_clause_parts)
     values.append(user_id)
 

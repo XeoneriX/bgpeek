@@ -43,10 +43,16 @@ from bgpeek.api import (
     webhooks as webhooks_api,
 )
 from bgpeek.core.auth import get_endpoint_action
+from bgpeek.main import app as bgpeek_app
 from bgpeek.ui import admin as admin_ui
 
-# Routers whose protected endpoints must declare a scope tag.
+# Routers whose protected endpoints must declare a scope tag. Includes the
+# top-level `app.router` because some routes (`/`, `/history`, `/api/health`,
+# `/api/docs`) are registered with `@app.get(...)` directly in main.py rather
+# than on a sub-router; they previously slipped past coverage checks even
+# though `/history` does serve user-bound data.
 PROTECTED_ROUTERS = (
+    bgpeek_app.router,
     auth_api.router,
     devices_api.router,
     credentials_api.router,
@@ -79,16 +85,37 @@ _UNSCOPED_PATHS = frozenset(
         "/api/results/{result_id}",
         # Community labels are non-sensitive read-only public metadata.
         "/api/community-labels",
+        # Top-level routes registered directly on the app via @app.get(...).
+        # All four are public-tolerant by design (homepage, health probe,
+        # docs page, history UI for own user). They never need scope tags
+        # because either no auth at all is required (/, /api/health,
+        # /api/docs) or the handler returns only the caller's own data
+        # (/history filters to user.id and returns empty for guests).
+        "/",
+        "/history",
+        "/api/health",
+        "/api/docs",
+        # Prometheus metrics endpoint — gated by BGPEEK_METRICS_ENABLED, expected
+        # to be firewalled at the reverse proxy. No user data, no auth.
+        "/metrics",
     }
 )
 
 
 def _all_protected_routes(routers: Iterable[object]) -> list[APIRoute]:
     out: list[APIRoute] = []
+    seen: set[int] = set()
     for r in routers:
         for route in getattr(r, "routes", []):
-            if isinstance(route, APIRoute):
-                out.append(route)
+            if not isinstance(route, APIRoute):
+                continue
+            # The app router and the sub-routers it includes share APIRoute
+            # objects after include_router; dedupe by identity so a missing
+            # tag only counts once.
+            if id(route) in seen:
+                continue
+            seen.add(id(route))
+            out.append(route)
     return out
 
 

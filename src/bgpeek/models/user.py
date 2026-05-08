@@ -98,7 +98,18 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    """Payload for partial updates. All fields optional."""
+    """Payload for partial updates. All fields optional.
+
+    ``allowed_actions`` is **deliberately not** a field on this model. The
+    generic ``crud.update_user`` path skips the subsumption guard, and a
+    scoped caller using a Phase 2 PATCH endpoint that piped the body
+    straight through ``UserUpdate`` would be able to widen their own
+    scopes silently. Phase 2 will introduce a dedicated
+    ``UserActionsUpdate`` payload + ``update_user_actions`` CRUD function
+    with the subsumption check baked in. Bodies sent here that include
+    ``allowed_actions`` raise 422 (``extra="forbid"``) — a clean refusal,
+    not a silent strip.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -106,12 +117,6 @@ class UserUpdate(BaseModel):
     email: TrimmedOptStr = None
     role: UserRole | None = None
     enabled: bool | None = None
-    allowed_actions: list[str] | None = None
-
-    @field_validator("allowed_actions")
-    @classmethod
-    def _check_actions(cls, v: Any) -> list[str] | None:
-        return _validate_scope_list(v)
 
 
 class UserCreateLocal(BaseModel):

@@ -112,31 +112,27 @@ class TestUserCreateAllowedActions:
         assert "users:creat" in captured.out
 
 
-class TestUserUpdateAllowedActions:
-    """Write-side validation on PATCH /api/users/{id} payloads."""
+class TestUserUpdateRefusesScopes:
+    """UserUpdate intentionally does not carry allowed_actions — Phase 2 will
+    add a dedicated UserActionsUpdate model with subsumption baked in."""
 
-    def test_unset_field_excluded_from_dump(self) -> None:
-        # PATCH `{}` should leave allowed_actions untouched on the row — i.e.
-        # exclude_unset must filter it out so it never reaches the SET clause.
-        payload = UserUpdate()
-        assert "allowed_actions" not in payload.model_dump(exclude_unset=True)
-        assert "allowed_actions" not in payload.model_fields_set
+    def test_extra_allowed_actions_rejected(self) -> None:
+        # `extra="forbid"` on UserUpdate turns the field-not-modeled into a
+        # 422-style ValidationError instead of silently stripping. Tighter
+        # than just leaving the field out — a Phase 2 PATCH that mistakenly
+        # routes through UserUpdate gets a clear failure mode.
+        with pytest.raises(ValidationError, match="(?i)extra"):
+            UserUpdate(allowed_actions=["users:read"])  # type: ignore[call-arg]
 
-    def test_explicit_null_distinguishable_from_unset(self) -> None:
-        # PATCH `{"allowed_actions": null}` — operator wants to revert a scoped
-        # user to legacy mode. Must be visible in `model_fields_set` so the
-        # update path can tell "set to null" apart from "don't touch".
-        payload = UserUpdate(allowed_actions=None)
-        assert "allowed_actions" in payload.model_fields_set
-        assert payload.model_dump(exclude_unset=True) == {"allowed_actions": None}
-
-    def test_explicit_list_visible(self) -> None:
-        payload = UserUpdate(allowed_actions=["users:read"])
-        assert payload.allowed_actions == ["users:read"]
-
-    def test_malformed_scopes_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="invalid scope format"):
-            UserUpdate(allowed_actions=["nosemicolon"])
+    def test_normal_fields_still_work(self) -> None:
+        # Sanity: removing allowed_actions didn't break the model.
+        payload = UserUpdate(role=UserRole.NOC, enabled=False)
+        assert payload.role == UserRole.NOC
+        assert payload.enabled is False
+        assert payload.model_dump(exclude_unset=True) == {
+            "role": UserRole.NOC,
+            "enabled": False,
+        }
 
 
 class TestUserReadJsonbCoercion:
