@@ -122,6 +122,8 @@ async def execute_query(
                 effective_target,
                 max_v4=settings.max_prefix_v4,
                 max_v6=settings.max_prefix_v6,
+                min_v4=settings.min_prefix_v4,
+                min_v6=settings.min_prefix_v6,
             )
         else:
             # ping/traceroute: always reject targets that are meaningless

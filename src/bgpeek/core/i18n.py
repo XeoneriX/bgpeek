@@ -108,6 +108,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_private_ip": "Private IP address — query not available",
         "error_bogon": "Reserved IP address — query not available",
         "error_prefix_too_specific": "Prefix too specific (max /{v4} for IPv4, /{v6} for IPv6)",
+        "error_prefix_too_broad": "Prefix too broad (min /{v4} for IPv4, /{v6} for IPv6)",
         "error_invalid_target": "Invalid IP address or hostname",
         "error_dns_failed": "Could not resolve hostname",
         "error_device_not_found": "Device not found",

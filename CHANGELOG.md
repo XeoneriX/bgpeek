@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`BGPEEK_BRAND_LOGO_PATH_DARK`** — optional logo variant rendered when the dark theme is active. Empty (the default) keeps the previous behaviour of using `BGPEEK_BRAND_LOGO_PATH` for both themes. Same Tailwind `dark:` class strategy as the rest of the UI; no JS, no CSP changes when paths are same-origin. The Configuration → Branding section now also documents the three supported deploy patterns for serving custom logo/favicon files (bind-mount, reverse proxy, baked image).
+- **`BGPEEK_MIN_PREFIX_V4`** (default `8`) and **`BGPEEK_MIN_PREFIX_V6`** (default `16`) — shortest prefix length accepted on BGP-route queries. `/0..7` IPv4 and `/0..15` IPv6 lookups walk the entire DFZ on the router, are useless to any role (operators want specific prefixes; the public output filter already hides /25–/32), and are a low-effort DoS vector. Set either to `0` to disable. Startup also rejects `min > max` for either family with a clear error — previously such a misconfiguration would reject every BGP query with no obvious indicator the bound was the cause.
+
+### Changed
+
+- **BGP-route input validation now rejects overly broad prefixes** with HTTP 400 `prefix too broad`. Default cutoff `/8` IPv4 / `/16` IPv6 (see new env vars above). The existing `/24` IPv4 / `/48` IPv6 upper bound is unchanged. Ping and traceroute targets are unaffected — they already require a single host.
 
 ## [1.4.0] - 2026-04-23
 

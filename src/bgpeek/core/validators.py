@@ -36,6 +36,8 @@ BOGONS_V6: tuple[IPv6Network, ...] = (
 
 DEFAULT_MAX_PREFIX_V4: int = 24
 DEFAULT_MAX_PREFIX_V6: int = 48
+DEFAULT_MIN_PREFIX_V4: int = 0
+DEFAULT_MIN_PREFIX_V6: int = 0
 
 
 class TargetValidationError(ValueError):
@@ -139,11 +141,27 @@ def prefix_too_specific(
     return network.prefixlen > max_v6
 
 
+def prefix_too_broad(
+    network: IPv4Network | IPv6Network,
+    min_v4: int = DEFAULT_MIN_PREFIX_V4,
+    min_v6: int = DEFAULT_MIN_PREFIX_V6,
+) -> bool:
+    """True if the prefix length is below min_v4 (IPv4) or min_v6 (IPv6).
+
+    A min of 0 disables the check (every prefix is at least /0).
+    """
+    if isinstance(network, IPv4Network):
+        return network.prefixlen < min_v4
+    return network.prefixlen < min_v6
+
+
 def validate_target(
     value: str,
     *,
     max_v4: int = DEFAULT_MAX_PREFIX_V4,
     max_v6: int = DEFAULT_MAX_PREFIX_V6,
+    min_v4: int = DEFAULT_MIN_PREFIX_V4,
+    min_v6: int = DEFAULT_MIN_PREFIX_V6,
 ) -> IPv4Network | IPv6Network:
     """Parse and validate a query target. Raises TargetValidationError on failure."""
     try:
@@ -165,6 +183,9 @@ def validate_target(
         raise TargetValidationError(
             "IPv6 target must be within Global Unicast range (2000::/3)", value
         )
+
+    if prefix_too_broad(network, min_v4=min_v4, min_v6=min_v6):
+        raise TargetValidationError("prefix too broad", value)
 
     if prefix_too_specific(network, max_v4=max_v4, max_v6=max_v6):
         raise TargetValidationError("prefix too specific", value)

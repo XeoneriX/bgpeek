@@ -54,6 +54,12 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
             return template.format(v4=settings.max_prefix_v4, v6=settings.max_prefix_v6)
         except (KeyError, IndexError):
             return template
+    if "too broad" in lower:
+        template = t.get("error_prefix_too_broad", detail)
+        try:
+            return template.format(v4=settings.min_prefix_v4, v6=settings.min_prefix_v6)
+        except (KeyError, IndexError):
+            return template
     if "subnet mask not allowed" in lower:
         return t.get("error_cidr_not_allowed", detail)
     if "invalid ping/traceroute target" in lower:
