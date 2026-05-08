@@ -4,10 +4,58 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
+from bgpeek.core.scopes import validate_scope_string, warn_unknown_actions
 from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
+
+def _validate_scope_list(v: Any) -> list[str] | None:
+    """Reject malformed scope strings; warn on unknown actions.
+
+    ``None`` passes through (legacy role-based authz). Empty list is allowed
+    semantically (deny-all) but practically meaningless — it would lock the
+    user out of every protected endpoint. We accept it without comment;
+    operators who set it have a reason (e.g. temporarily neutralise a key
+    without deleting the row to preserve audit history).
+    """
+    if v is None:
+        return None
+    if not isinstance(v, list):
+        raise ValueError("allowed_actions must be a list of strings or null")
+    cleaned: list[str] = []
+    for s in v:
+        if not isinstance(s, str):
+            raise ValueError(f"scope must be a string, got {type(s).__name__}")
+        if not validate_scope_string(s):
+            raise ValueError(
+                f"invalid scope format: {s!r} "
+                f"(expected 'resource:action' or 'resource:*' or '*'; "
+                f"see core/scopes.py)"
+            )
+        cleaned.append(s)
+    warn_unknown_actions(cleaned)
+    return cleaned
+
+
+# Pydantic validator that DB code can apply when reading an asyncpg JSONB
+# value. asyncpg returns JSONB as `str`; this BeforeValidator parses the
+# string into the Python list before the field type check runs. Models that
+# only ever construct from API payloads (UserCreate, UserUpdate) skip this
+# helper — ``v`` is already a list there.
+def _parse_jsonb_list(v: Any) -> Any:
+    if isinstance(v, str):
+        import json
+        return json.loads(v)
+    return v
+
+
+AllowedActions = Annotated[
+    list[str] | None,
+    BeforeValidator(_parse_jsonb_list),
+]
 
 
 class UserRole(StrEnum):
@@ -41,6 +89,12 @@ class UserCreate(UserBase):
     # `api_key` is a shared secret — keep exactly what the caller sent, even
     # if it has incidental whitespace. Length constraint already blocks "   ".
     api_key: str | None = Field(default=None, min_length=32, max_length=128)
+    allowed_actions: list[str] | None = None
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def _check_actions(cls, v: Any) -> list[str] | None:
+        return _validate_scope_list(v)
 
 
 class UserUpdate(BaseModel):
@@ -52,6 +106,12 @@ class UserUpdate(BaseModel):
     email: TrimmedOptStr = None
     role: UserRole | None = None
     enabled: bool | None = None
+    allowed_actions: list[str] | None = None
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def _check_actions(cls, v: Any) -> list[str] | None:
+        return _validate_scope_list(v)
 
 
 class UserCreateLocal(BaseModel):
@@ -87,6 +147,9 @@ class User(UserBase):
     password_hash: str | None = None
     created_at: datetime
     last_login_at: datetime | None = None
+    # asyncpg returns JSONB as a string — the BeforeValidator parses it once
+    # so callers always see a list (or None for legacy users).
+    allowed_actions: AllowedActions = None
 
 
 class UserPublic(BaseModel):
@@ -113,6 +176,7 @@ class UserAdmin(BaseModel):
     enabled: bool
     created_at: datetime
     last_login_at: datetime | None = None
+    allowed_actions: AllowedActions = None
 
 
 class UserCreated(UserAdmin):

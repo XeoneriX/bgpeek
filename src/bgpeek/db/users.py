@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 
 import asyncpg
@@ -12,6 +13,11 @@ import structlog
 from bgpeek.models.user import User, UserCreate, UserCreateLocal, UserRole, UserUpdate
 
 log = structlog.get_logger(__name__)
+
+
+def _serialise_actions(actions: list[str] | None) -> str | None:
+    """Encode an allowed_actions list as JSON for asyncpg. None stays None."""
+    return None if actions is None else json.dumps(actions)
 
 
 class IdentityProviderConflictError(Exception):
@@ -75,8 +81,9 @@ async def create_user(pool: asyncpg.Pool, payload: UserCreate) -> tuple[User, st
 
     row = await pool.fetchrow(
         """
-        INSERT INTO users (username, email, role, auth_provider, api_key_hash, enabled)
-        VALUES ($1, $2, $3, 'api_key', $4, $5)
+        INSERT INTO users (username, email, role, auth_provider, api_key_hash,
+                           enabled, allowed_actions)
+        VALUES ($1, $2, $3, 'api_key', $4, $5, $6::jsonb)
         RETURNING *
         """,
         payload.username,
@@ -84,6 +91,7 @@ async def create_user(pool: asyncpg.Pool, payload: UserCreate) -> tuple[User, st
         payload.role.value,
         _hash_key(plaintext_key),
         payload.enabled,
+        _serialise_actions(payload.allowed_actions),
     )
     assert row is not None
     return User.model_validate(dict(row)), plaintext_key
@@ -110,7 +118,12 @@ async def list_users(pool: asyncpg.Pool) -> list[User]:
     return [User.model_validate(dict(r)) for r in rows]
 
 
-_UPDATABLE_COLUMNS: frozenset[str] = frozenset({"username", "email", "role", "enabled"})
+_UPDATABLE_COLUMNS: frozenset[str] = frozenset(
+    {"username", "email", "role", "enabled", "allowed_actions"}
+)
+# Columns whose value must reach asyncpg as a JSON string with a `::jsonb` cast,
+# rather than as a Python list/dict that asyncpg would try to encode as TEXT.
+_JSONB_COLUMNS: frozenset[str] = frozenset({"allowed_actions"})
 
 
 async def update_user(pool: asyncpg.Pool, user_id: int, payload: UserUpdate) -> User | None:
@@ -124,8 +137,12 @@ async def update_user(pool: asyncpg.Pool, user_id: int, payload: UserUpdate) -> 
     for idx, (column, value) in enumerate(fields.items(), start=1):
         if column not in _UPDATABLE_COLUMNS:
             raise ValueError(f"refusing to update unknown column: {column!r}")
-        set_clause_parts.append(f"{column} = ${idx}")
-        values.append(value)
+        if column in _JSONB_COLUMNS:
+            set_clause_parts.append(f"{column} = ${idx}::jsonb")
+            values.append(_serialise_actions(value) if value is not None else None)
+        else:
+            set_clause_parts.append(f"{column} = ${idx}")
+            values.append(value)
     set_clause = ", ".join(set_clause_parts)
     values.append(user_id)
 
