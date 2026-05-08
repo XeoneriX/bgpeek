@@ -14,13 +14,14 @@ from fastapi_csrf_protect import CsrfProtect
 
 from bgpeek.config import settings
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
-from bgpeek.core.auth import authenticate, require_role
+from bgpeek.core.auth import authenticate, require_role, scoped_endpoint
 from bgpeek.core.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from bgpeek.core.jwt import create_token, decode_token
 from bgpeek.core.jwt_revoke import revoke as revoke_jwt
 from bgpeek.core.ldap import authenticate_ldap
 from bgpeek.core.oidc import extract_role_from_token, get_oidc_client
 from bgpeek.core.rate_limit import rate_limit_login
+from bgpeek.core.scopes import subsumes as scopes_subsume
 from bgpeek.core.templates import templates
 from bgpeek.db import users as crud
 from bgpeek.db.audit import log_audit
@@ -654,7 +655,44 @@ async def oidc_callback(request: Request) -> Response:
 _admin = require_role(UserRole.ADMIN)
 
 
+async def _enforce_subsumption(
+    *,
+    caller: User,
+    granted: list[str] | None,
+    target_username: str,
+    request: Request,
+) -> None:
+    """Reject scope-grant attempts that exceed the caller's own scopes.
+
+    Subsumption is the core T1 / T1' invariant: a scoped caller cannot mint
+    a user whose scopes are wider than their own — including (especially) a
+    user with ``allowed_actions=None`` (legacy admin god-mode). Callers
+    invoke this *before* mutating state so a denied attempt costs nothing.
+    """
+    if scopes_subsume(caller.allowed_actions, granted):
+        return
+    await log_audit(
+        get_pool(),
+        AuditEntryCreate(
+            action=AuditAction.PRIVILEGE_ESCALATION_ATTEMPT,
+            success=False,
+            **user_ctx(caller),
+            **request_ctx(request),
+            error_message=(
+                f"target_username={target_username} "
+                f"caller_scopes={caller.allowed_actions} "
+                f"granted_scopes={granted}"
+            ),
+        ),
+    )
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        detail="cannot grant scopes wider than your own",
+    )
+
+
 @router.post("/api/users", response_model=UserCreated, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("users:create")
 async def create_user(
     payload: UserCreate,
     request: Request,
@@ -667,6 +705,12 @@ async def create_user(
     the server generate a strong value; supplying the field remains supported
     for one more release cycle but is deprecated (removal in v1.5.0).
     """
+    await _enforce_subsumption(
+        caller=caller,
+        granted=payload.allowed_actions,
+        target_username=payload.username,
+        request=request,
+    )
     try:
         created, plaintext_key = await crud.create_user(get_pool(), payload)
     except asyncpg.UniqueViolationError as exc:
@@ -693,12 +737,26 @@ async def create_user(
 
 
 @router.post("/api/users/local", response_model=UserAdmin, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("users:create")
 async def create_local_user(
     payload: UserCreateLocal,
     request: Request,
     caller: User = Depends(_admin),  # noqa: B008
 ) -> User:
-    """Create a new local (password) user (admin only)."""
+    """Create a new local (password) user (admin only).
+
+    Local users currently have no scope-grant payload (UserCreateLocal does
+    not carry ``allowed_actions``), so they are always created in legacy
+    role-based mode. A scoped caller therefore cannot create a local user at
+    all — ``subsumes(scoped, None)`` is False and the subsumption guard
+    fires.
+    """
+    await _enforce_subsumption(
+        caller=caller,
+        granted=None,  # local users always start as legacy (no scope payload)
+        target_username=payload.username,
+        request=request,
+    )
     try:
         created = await crud.create_local_user(get_pool(), payload)
     except asyncpg.UniqueViolationError as exc:
@@ -720,6 +778,7 @@ async def create_local_user(
 
 
 @router.get("/api/users", response_model=list[UserAdmin])
+@scoped_endpoint("users:read")
 async def list_users(
     _caller: User = Depends(_admin),  # noqa: B008
 ) -> list[User]:
@@ -728,6 +787,7 @@ async def list_users(
 
 
 @router.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("users:delete")
 async def delete_user(
     user_id: int,
     request: Request,

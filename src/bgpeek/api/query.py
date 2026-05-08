@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from bgpeek.config import settings
-from bgpeek.core.auth import authenticate, guest_user, optional_auth
+from bgpeek.core.auth import guest_user, optional_auth, scope_gate, scoped_endpoint
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.rate_limit import rate_limit_query
@@ -106,10 +106,11 @@ def _ssh_key_path() -> Path | None:
 
 
 @router.post("/api/query", response_model=QueryResponse)
+@scoped_endpoint("query:execute")
 async def api_query(
     request: Request,
     body: QueryRequest,
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> QueryResponse:
     """Execute a looking glass query (JSON API)."""
@@ -234,10 +235,11 @@ async def htmx_query(
 
 
 @router.post("/api/query/multi", response_model=MultiQueryResponse)
+@scoped_endpoint("query:execute")
 async def api_multi_query(
     request: Request,
     body: MultiQueryRequest,
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> MultiQueryResponse:
     """Execute a query against multiple devices in parallel (JSON API)."""
@@ -424,8 +426,9 @@ async def result_page(
 
 
 @router.get("/api/results", response_model=list[StoredResult])
+@scoped_endpoint("query:history:read")
 async def api_list_results(
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
 ) -> list[StoredResult]:
     """List recent results for the authenticated user."""
     results = await list_results(get_pool(), user_id=_real_user_id(caller))

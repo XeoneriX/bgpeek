@@ -24,6 +24,8 @@ class AuditAction(StrEnum):
     CREATE_USER = "create_user"
     UPDATE_USER = "update_user"
     DELETE_USER = "delete_user"
+    SCOPE_VIOLATION = "scope_violation"
+    PRIVILEGE_ESCALATION_ATTEMPT = "privilege_escalation_attempt"
 
 
 class AuditEntryCreate(BaseModel):

@@ -87,6 +87,8 @@ class Action(StrEnum):
     SETTINGS_READ = "settings:read"
     SETTINGS_WRITE = "settings:write"
 
+    ADMIN_DASHBOARD = "admin:dashboard"
+
 
 def validate_scope_string(s: str) -> bool:
     """Strict format validation. Used at write time (Pydantic validator + DB CHECK)."""

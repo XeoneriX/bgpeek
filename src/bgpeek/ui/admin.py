@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from bgpeek import __version__
 from bgpeek.config import settings
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
-from bgpeek.core.auth import require_role
+from bgpeek.core.auth import require_role, scoped_endpoint
 from bgpeek.core.cache import invalidate_device
 from bgpeek.core.circuit_breaker import failure_counts as cb_failure_counts
 from bgpeek.core.commands import supported_platforms
@@ -73,6 +73,7 @@ def _template_response_with_csrf(
 
 
 @router.get("", response_class=HTMLResponse)
+@scoped_endpoint("admin:dashboard")
 async def admin_index(
     request: Request,
     user: User = Depends(_admin),  # noqa: B008
@@ -163,6 +164,7 @@ async def _render_device_form(
 
 
 @router.get("/devices", response_class=HTMLResponse)
+@scoped_endpoint("devices:read")
 async def devices_list(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -196,6 +198,7 @@ async def devices_list(
 
 
 @router.get("/devices/new", response_class=HTMLResponse)
+@scoped_endpoint("devices:create")
 async def devices_new(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -212,6 +215,7 @@ async def devices_new(
 
 
 @router.post("/devices")
+@scoped_endpoint("devices:create")
 async def devices_create(
     request: Request,
     caller: User = Depends(_admin),  # noqa: B008
@@ -302,6 +306,7 @@ async def devices_create(
 
 
 @router.get("/devices/{device_id}/edit", response_class=HTMLResponse)
+@scoped_endpoint("devices:update")
 async def devices_edit(
     device_id: int,
     request: Request,
@@ -323,6 +328,7 @@ async def devices_edit(
 
 
 @router.post("/devices/{device_id}")
+@scoped_endpoint("devices:update")
 async def devices_update(
     device_id: int,
     request: Request,
@@ -419,6 +425,7 @@ async def devices_update(
 
 
 @router.post("/devices/{device_id}/delete")
+@scoped_endpoint("devices:delete")
 async def devices_delete(
     device_id: int,
     request: Request,
@@ -496,6 +503,7 @@ async def _render_credential_form(
 
 
 @router.get("/credentials", response_class=HTMLResponse)
+@scoped_endpoint("credentials:read")
 async def credentials_list(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -516,6 +524,7 @@ async def credentials_list(
 
 
 @router.get("/credentials/new", response_class=HTMLResponse)
+@scoped_endpoint("credentials:create")
 async def credentials_new(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -533,6 +542,7 @@ async def credentials_new(
 
 
 @router.post("/credentials")
+@scoped_endpoint("credentials:create")
 async def credentials_create(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -591,6 +601,7 @@ async def credentials_create(
 
 
 @router.get("/credentials/{credential_id}/edit", response_class=HTMLResponse)
+@scoped_endpoint("credentials:update")
 async def credentials_edit(
     credential_id: int,
     request: Request,
@@ -614,6 +625,7 @@ async def credentials_edit(
 
 
 @router.post("/credentials/{credential_id}")
+@scoped_endpoint("credentials:update")
 async def credentials_update(
     credential_id: int,
     request: Request,
@@ -688,6 +700,7 @@ async def credentials_update(
 
 
 @router.post("/credentials/{credential_id}/delete")
+@scoped_endpoint("credentials:delete")
 async def credentials_delete(
     credential_id: int,
     _user: User = Depends(_admin),  # noqa: B008
@@ -749,6 +762,7 @@ async def _render_user_form(
 
 
 @router.get("/users", response_class=HTMLResponse)
+@scoped_endpoint("users:read")
 async def users_list(
     request: Request,
     current_user: User = Depends(_admin),  # noqa: B008
@@ -773,6 +787,7 @@ async def users_list(
 
 
 @router.get("/users/new", response_class=HTMLResponse)
+@scoped_endpoint("users:create")
 async def users_new(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -794,6 +809,7 @@ async def users_new(
 
 
 @router.post("/users")
+@scoped_endpoint("users:create")
 async def users_create(
     request: Request,
     caller: User = Depends(_admin),  # noqa: B008
@@ -933,6 +949,7 @@ async def users_create(
 
 
 @router.get("/users/{user_id}/edit", response_class=HTMLResponse)
+@scoped_endpoint("users:update")
 async def users_edit(
     user_id: int,
     request: Request,
@@ -954,6 +971,7 @@ async def users_edit(
 
 
 @router.post("/users/{user_id}")
+@scoped_endpoint("users:update")
 async def users_update(
     user_id: int,
     request: Request,
@@ -1005,6 +1023,7 @@ async def users_update(
 
 
 @router.post("/users/{user_id}/delete")
+@scoped_endpoint("users:delete")
 async def users_delete(
     user_id: int,
     request: Request,
@@ -1069,6 +1088,7 @@ async def _render_label_form(
 
 
 @router.get("/community-labels", response_class=HTMLResponse)
+@scoped_endpoint("community_labels:read")
 async def community_labels_list(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1090,6 +1110,7 @@ async def community_labels_list(
 
 
 @router.get("/community-labels/new", response_class=HTMLResponse)
+@scoped_endpoint("community_labels:write")
 async def community_labels_new(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1113,6 +1134,7 @@ def _validate_label_inputs(match_type: str, color: str | None) -> None:
 
 
 @router.post("/community-labels")
+@scoped_endpoint("community_labels:write")
 async def community_labels_create(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1169,6 +1191,7 @@ async def community_labels_create(
 
 
 @router.get("/community-labels/{label_id}/edit", response_class=HTMLResponse)
+@scoped_endpoint("community_labels:write")
 async def community_labels_edit(
     label_id: int,
     request: Request,
@@ -1188,6 +1211,7 @@ async def community_labels_edit(
 
 
 @router.post("/community-labels/{label_id}")
+@scoped_endpoint("community_labels:write")
 async def community_labels_update(
     label_id: int,
     request: Request,
@@ -1233,6 +1257,7 @@ async def community_labels_update(
 
 
 @router.post("/community-labels/{label_id}/delete")
+@scoped_endpoint("community_labels:write")
 async def community_labels_delete(
     label_id: int,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1297,6 +1322,7 @@ def _normalize_event_list(events: list[str]) -> list[WebhookEvent]:
 
 
 @router.get("/webhooks", response_class=HTMLResponse)
+@scoped_endpoint("webhooks:read")
 async def webhooks_list(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1319,6 +1345,7 @@ async def webhooks_list(
 
 
 @router.get("/webhooks/new", response_class=HTMLResponse)
+@scoped_endpoint("webhooks:create")
 async def webhooks_new(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1336,6 +1363,7 @@ async def webhooks_new(
 
 
 @router.post("/webhooks")
+@scoped_endpoint("webhooks:create")
 async def webhooks_create(
     request: Request,
     _user: User = Depends(_admin),  # noqa: B008
@@ -1391,6 +1419,7 @@ async def webhooks_create(
 
 
 @router.get("/webhooks/{webhook_id}/edit", response_class=HTMLResponse)
+@scoped_endpoint("webhooks:update")
 async def webhooks_edit(
     webhook_id: int,
     request: Request,
@@ -1415,6 +1444,7 @@ async def webhooks_edit(
 
 
 @router.post("/webhooks/{webhook_id}")
+@scoped_endpoint("webhooks:update")
 async def webhooks_update(
     webhook_id: int,
     request: Request,
@@ -1478,6 +1508,7 @@ async def webhooks_update(
 
 
 @router.post("/webhooks/{webhook_id}/delete")
+@scoped_endpoint("webhooks:delete")
 async def webhooks_delete(
     webhook_id: int,
     _user: User = Depends(_admin),  # noqa: B008
