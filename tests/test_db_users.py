@@ -206,3 +206,62 @@ async def test_update_local_user_password(pool: asyncpg.Pool) -> None:
     assert (
         await crud.verify_local_user_password(pool, created.id, "new-secure-password-456") is True
     )
+
+
+# ---------------------------------------------------------------------------
+# allowed_actions storage-layer CHECK (defence-in-depth)
+#
+# These exercise the DB CHECK directly via raw SQL, bypassing the Pydantic
+# validator. The point is to confirm that even if a future caller manages to
+# write to users.allowed_actions without round-tripping through UserCreate /
+# UserUpdate (out-of-band SQL, a forgotten validator on a new endpoint),
+# malformed data still hits the wall.
+# ---------------------------------------------------------------------------
+
+
+async def _seed_user_with_actions(pool: asyncpg.Pool, raw_jsonb: str) -> None:
+    """Insert a row directly with arbitrary JSONB allowed_actions text."""
+    await pool.execute(
+        """
+        INSERT INTO users (username, role, auth_provider, api_key_hash, enabled, allowed_actions)
+        VALUES ($1, 'admin', 'api_key', $2, TRUE, $3::jsonb)
+        """,
+        f"check-test-{raw_jsonb[:16]}",
+        "x" * 64,
+        raw_jsonb,
+    )
+
+
+async def test_check_accepts_null(pool: asyncpg.Pool) -> None:
+    await pool.execute(
+        """
+        INSERT INTO users (username, role, auth_provider, api_key_hash, enabled, allowed_actions)
+        VALUES ('check-null', 'admin', 'api_key', $1, TRUE, NULL)
+        """,
+        "x" * 64,
+    )
+
+
+async def test_check_accepts_well_formed_array(pool: asyncpg.Pool) -> None:
+    await _seed_user_with_actions(pool, '["users:create", "users:read", "*"]')
+
+
+@pytest.mark.parametrize(
+    "bad_jsonb",
+    [
+        '"users:create"',  # JSON string, not array
+        "{}",  # JSON object, not array
+        "42",  # JSON number, not array
+        '[null]',  # null element — the M1 case
+        '[""]',  # empty string element
+        '["users"]',  # bare resource (no `:action`)
+        '["Users:Create"]',  # uppercase
+        '["users:create OR 1=1"]',  # injection-shaped
+        '["users-admin:create"]',  # hyphen not in alphabet
+        '["*:create"]',  # cross-resource wildcard
+        '["users:create", "devices"]',  # one bad element among good ones
+    ],
+)
+async def test_check_rejects_malformed(pool: asyncpg.Pool, bad_jsonb: str) -> None:
+    with pytest.raises(asyncpg.CheckViolationError):
+        await _seed_user_with_actions(pool, bad_jsonb)
