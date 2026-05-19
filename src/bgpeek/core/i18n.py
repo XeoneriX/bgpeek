@@ -214,6 +214,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_users_password": "Password",
         "admin_users_password_hint": "Minimum 8 characters.",
         "admin_users_username_immutable": "Username is immutable after creation.",
+        "admin_users_username_hint": "3-255 characters. Letters, digits, and . _ + @ - only. Must start and end with a letter or digit.",
         "admin_users_cannot_delete_self": "You cannot delete your own account.",
         "admin_users_key_title": "API key generated",
         "admin_users_key_subtitle": "A new API key has been generated for user",

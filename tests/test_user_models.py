@@ -16,9 +16,69 @@ from bgpeek.models.user import (
     User,
     UserAdmin,
     UserCreate,
+    UserCreateLocal,
     UserRole,
     UserUpdate,
 )
+
+
+class TestUsernameCharsetAndLength:
+    """Charset + length rules applied at admin-driven creation/update.
+
+    LDAP/OIDC upserts and ``LoginRequest`` deliberately bypass these checks —
+    see the constants block in models/user.py for the reasoning.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "abc",  # min-length boundary
+            "alice",
+            "noc-svc",
+            "noc-user",
+            "user.name",
+            "user_name",
+            "alice@example.com",
+            "alice+work@example.com",
+            "a" * 255,  # max-length boundary
+        ],
+    )
+    def test_accepts(self, name: str) -> None:
+        u = UserCreate(username=name, role=UserRole.PUBLIC)
+        assert u.username == name
+
+    @pytest.mark.parametrize(
+        ("name", "reason"),
+        [
+            ("ab", "too short"),
+            ("a", "too short"),
+            ("", "empty"),
+            (".alice", "leading punctuation"),
+            ("alice.", "trailing punctuation"),
+            ("-alice", "leading hyphen"),
+            ("alice/bob", "slash not allowed"),
+            ("alice bob", "internal space"),
+            ("alice!", "punctuation outside charset"),
+            ("алиса", "non-ascii letters"),
+            ("a" * 256, "exceeds max length"),
+        ],
+    )
+    def test_rejects(self, name: str, reason: str) -> None:
+        with pytest.raises(ValidationError):
+            UserCreate(username=name, role=UserRole.PUBLIC)
+
+    def test_local_user_applies_same_rules(self) -> None:
+        with pytest.raises(ValidationError):
+            UserCreateLocal(username="ab", password="hunter2hunter2")
+
+    def test_update_applies_pattern_when_present(self) -> None:
+        with pytest.raises(ValidationError):
+            UserUpdate(username=".alice")
+
+    def test_update_username_none_passes(self) -> None:
+        # Partial PATCH that doesn't touch the username field must still validate.
+        u = UserUpdate(role=UserRole.NOC)
+        assert u.username is None
 
 
 class TestUserCreateAllowedActions:
@@ -95,14 +155,12 @@ class TestUserCreateAllowedActions:
                 allowed_actions=[123],  # type: ignore[list-item]
             )
 
-    def test_unknown_action_warns_but_passes(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_unknown_action_warns_but_passes(self, capsys: pytest.CaptureFixture[str]) -> None:
         # Forward-compat: well-formed but not in Action enum. Allowed for forward
         # compatibility with future endpoints, but stdout warns the operator
         # since "users:creat" is more likely a typo than a future-dated scope.
         u = UserCreate(
-            username="x",
+            username="alice",
             role=UserRole.NOC,
             allowed_actions=["users:creat"],
         )

@@ -70,7 +70,7 @@ class TestCredentialWhitespace:
 
 class TestUserWhitespace:
     def test_whitespace_only_username_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="at least 1"):
+        with pytest.raises(ValidationError, match="at least 3"):
             UserCreateLocal(username="   ", password="abcdefgh")
 
     def test_password_whitespace_preserved(self) -> None:
@@ -78,7 +78,7 @@ class TestUserWhitespace:
         assert u.password == "  hunter2x  "  # noqa: S105 — exercises whitespace-preservation invariant
 
     def test_update_whitespace_username_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="at least 1"):
+        with pytest.raises(ValidationError, match="at least 3"):
             UserUpdate(username="   ")
 
 

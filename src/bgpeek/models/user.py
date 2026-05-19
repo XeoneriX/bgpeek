@@ -11,6 +11,20 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_valida
 from bgpeek.core.scopes import validate_scope_string, warn_unknown_actions
 from bgpeek.models._common import TrimmedOptStr, TrimmedStr
 
+# Username constraints — applied to admin-driven creation/update only.
+# LDAP/OIDC upserts (`upsert_ldap_user`, `upsert_oidc_user`) pass the IdP-
+# supplied identifier straight to SQL and skip these checks: the IdP is
+# authoritative for naming, and we cannot retroactively reject a `sub` claim
+# that the directory already issued. `LoginRequest` also stays unrestricted
+# so existing accounts whose names predate this rule can still authenticate.
+USERNAME_MIN_LENGTH = 3
+USERNAME_MAX_LENGTH = 255
+# Alphanumeric plus chars common in service-account and email-style names
+# (`.`, `_`, `+`, `@`, `-`). Must start AND end with alphanumeric — keeps
+# audit-log lines unambiguous and rejects edge-only punctuation like `.foo`
+# or `foo-` that tends to come from copy-paste mistakes.
+USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._+@-]*[A-Za-z0-9]$"
+
 
 def _validate_scope_list(v: Any) -> list[str] | None:
     """Reject malformed scope strings; warn on unknown actions.
@@ -71,7 +85,11 @@ class UserRole(StrEnum):
 class UserBase(BaseModel):
     """Fields shared by create / read variants."""
 
-    username: TrimmedStr = Field(min_length=1, max_length=255)
+    username: TrimmedStr = Field(
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     email: TrimmedOptStr = None
     role: UserRole = UserRole.PUBLIC
     enabled: bool = True
@@ -114,7 +132,12 @@ class UserUpdate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    username: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    username: TrimmedOptStr = Field(
+        default=None,
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     email: TrimmedOptStr = None
     role: UserRole | None = None
     enabled: bool | None = None
@@ -125,7 +148,11 @@ class UserCreateLocal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    username: TrimmedStr = Field(min_length=1, max_length=255)
+    username: TrimmedStr = Field(
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     # Passwords are preserved verbatim; silently stripping whitespace could
     # desynchronise the stored hash from what the user types at the login form.
     password: str = Field(min_length=8, max_length=128)
