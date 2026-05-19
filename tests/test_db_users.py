@@ -252,7 +252,7 @@ async def test_check_accepts_well_formed_array(pool: asyncpg.Pool) -> None:
         '"users:create"',  # JSON string, not array
         "{}",  # JSON object, not array
         "42",  # JSON number, not array
-        '[null]',  # null element — the M1 case
+        "[null]",  # null element — the M1 case
         '[""]',  # empty string element
         '["users"]',  # bare resource (no `:action`)
         '["Users:Create"]',  # uppercase

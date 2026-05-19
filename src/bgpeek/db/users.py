@@ -127,9 +127,7 @@ async def list_users(pool: asyncpg.Pool) -> list[User]:
 # function that bakes subsumption in, and a corresponding `UserActionsUpdate`
 # input model. Until then, attempting to update `allowed_actions` via this
 # path raises ValueError.
-_UPDATABLE_COLUMNS: frozenset[str] = frozenset(
-    {"username", "email", "role", "enabled"}
-)
+_UPDATABLE_COLUMNS: frozenset[str] = frozenset({"username", "email", "role", "enabled"})
 
 
 async def update_user(pool: asyncpg.Pool, user_id: int, payload: UserUpdate) -> User | None:
@@ -157,6 +155,36 @@ async def delete_user(pool: asyncpg.Pool, user_id: int) -> bool:
     """Delete a user. Returns True if a row was removed."""
     result: str = await pool.execute("DELETE FROM users WHERE id = $1", user_id)
     return result.endswith(" 1")
+
+
+async def count_enabled_admins(pool: asyncpg.Pool) -> int:
+    """Count rows with ``role='admin' AND enabled IS TRUE``.
+
+    Used by the PATCH-user last-admin-lockout guard: a change that would
+    drop the count to zero is refused with HTTP 409 so the system can't be
+    locked out of admin access via a single request.
+    """
+    val = await pool.fetchval("SELECT count(*) FROM users WHERE role = 'admin' AND enabled IS TRUE")
+    return int(val or 0)
+
+
+async def invalidate_user_sessions(pool: asyncpg.Pool, user_id: int) -> None:
+    """Bump ``sessions_valid_after`` to ``now()`` for a single user.
+
+    All outstanding JWTs for that user become invalid on their next request
+    (`_resolve_jwt` rejects tokens with `iat` predating this column). Used
+    by admin password reset and by ``enabled=false`` so we don't have to
+    enumerate live tokens.
+
+    Deliberately not a column on ``UserUpdate`` and not in
+    ``_UPDATABLE_COLUMNS`` — bumping the epoch is a security action with
+    consequences (every device the user is logged in from gets kicked
+    out), not a profile field.
+    """
+    await pool.execute(
+        "UPDATE users SET sessions_valid_after = now() WHERE id = $1",
+        user_id,
+    )
 
 
 async def create_local_user(pool: asyncpg.Pool, payload: UserCreateLocal) -> User:

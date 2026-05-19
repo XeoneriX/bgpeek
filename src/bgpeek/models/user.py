@@ -48,6 +48,7 @@ def _validate_scope_list(v: Any) -> list[str] | None:
 def _parse_jsonb_list(v: Any) -> Any:
     if isinstance(v, str):
         import json
+
         return json.loads(v)
     return v
 
@@ -141,6 +142,20 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
+class PasswordResetRequest(BaseModel):
+    """Payload for admin-driven password reset.
+
+    Min/max bounds match :class:`UserCreateLocal.password` so the same
+    server-generated token is accepted by both endpoints. Verbatim — no
+    whitespace stripping — to keep the stored hash identical to what the
+    user types at the login form.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class User(UserBase):
     """User as stored in PostgreSQL."""
 
@@ -155,6 +170,10 @@ class User(UserBase):
     # asyncpg returns JSONB as a string — the BeforeValidator parses it once
     # so callers always see a list (or None for legacy users).
     allowed_actions: AllowedActions = None
+    # Per-user JWT invalidation epoch. Internal field — deliberately NOT on
+    # UserAdmin/UserPublic. Bumped on admin password reset / enabled=false;
+    # `_resolve_jwt` rejects tokens whose `iat` predates this timestamp.
+    sessions_valid_after: datetime | None = None
 
 
 class UserPublic(BaseModel):

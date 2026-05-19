@@ -60,6 +60,7 @@ class Action(StrEnum):
     USERS_UPDATE = "users:update"
     USERS_DELETE = "users:delete"
     USERS_ACTIONS_UPDATE = "users:actions:update"
+    USERS_RESET_PASSWORD = "users:reset_password"  # noqa: S105 — scope identifier, not a password
 
     DEVICES_READ = "devices:read"
     DEVICES_CREATE = "devices:create"

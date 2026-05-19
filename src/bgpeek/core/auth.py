@@ -79,6 +79,18 @@ async def _resolve_jwt(token: str) -> User:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="user not found or disabled",
         )
+    # Per-user JWT invalidation epoch. Bumped by admin password reset and by
+    # ``enabled=false`` so that a single column flip kicks out every live
+    # session for the user without having to enumerate live `jti`s. A token
+    # whose `iat` predates the epoch is rejected even though it would
+    # otherwise verify.
+    if user.sessions_valid_after is not None:
+        iat = payload.get("iat")
+        if isinstance(iat, int) and iat < int(user.sessions_valid_after.timestamp()):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="session invalidated — please log in again",
+            )
     return user
 
 
@@ -246,9 +258,7 @@ async def scope_gate(
         await _log_scope_denial(
             request=request,
             user=user,
-            error_message=(
-                f"required={declared_action} allowed={user.allowed_actions}"
-            ),
+            error_message=(f"required={declared_action} allowed={user.allowed_actions}"),
             action=AuditAction.SCOPE_VIOLATION,
         )
         raise HTTPException(
@@ -313,3 +323,29 @@ def require_role(
         return user
 
     return _check
+
+
+# Numeric role ranks — strictly increasing privilege. `role_subsumes` uses
+# them to gate cross-role admin actions (PATCH, password reset, local-create
+# with role override). Kept as an opaque mapping rather than encoding the
+# order on `UserRole` itself so the comparison rule stays in one place and
+# can evolve independently of the enum (e.g. inserting a new tier between
+# NOC and ADMIN later).
+_ROLE_RANK: dict[UserRole, int] = {
+    UserRole.GUEST: 0,
+    UserRole.PUBLIC: 10,
+    UserRole.NOC: 20,
+    UserRole.ADMIN: 100,
+}
+
+
+def role_subsumes(caller: UserRole, target: UserRole) -> bool:
+    """True iff ``caller`` may perform privileged ops on a ``target``-roled user.
+
+    Non-strict (``>=``): admin can act on another admin. Operationally
+    necessary — without this the admin pool becomes self-locking the moment
+    one admin forgets a password and there's no separate "root" tier above
+    them. Cross-admin actions are still recorded in the audit log
+    (``UPDATE_USER`` / ``RESET_PASSWORD``) so abuse is detectable post-fact.
+    """
+    return _ROLE_RANK[caller] >= _ROLE_RANK[target]

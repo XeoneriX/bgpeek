@@ -126,10 +126,13 @@ class TestSubsumes:
         assert subsumes(["users:create", "users:read"], ["users:create"]) is True
         assert subsumes(["users:create", "users:read"], ["users:read"]) is True
         # Subset including both
-        assert subsumes(
-            ["users:create", "users:read", "users:update"],
-            ["users:create", "users:read"],
-        ) is True
+        assert (
+            subsumes(
+                ["users:create", "users:read", "users:update"],
+                ["users:create", "users:read"],
+            )
+            is True
+        )
 
     def test_wildcard_caller_grants_specific_within_namespace(self) -> None:
         assert subsumes(["users:*"], ["users:create"]) is True
@@ -187,9 +190,7 @@ class TestWarnUnknownActions:
         assert "users:creat" in captured.out
 
     def test_mixed_known_and_unknown(self, capsys: pytest.CaptureFixture[str]) -> None:
-        warn_unknown_actions(
-            [Action.USERS_CREATE.value, "users:creat", Action.USERS_READ.value]
-        )
+        warn_unknown_actions([Action.USERS_CREATE.value, "users:creat", Action.USERS_READ.value])
         captured = capsys.readouterr()
         # Only the typo triggers — once.
         assert captured.out.count("scope_not_in_action_registry") == 1
