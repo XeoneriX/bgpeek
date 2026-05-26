@@ -15,6 +15,7 @@ from bgpeek.config import settings
 from bgpeek.core.auth import guest_user, optional_auth, scope_gate, scoped_endpoint
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
+from bgpeek.core.audit_helpers import request_ctx
 from bgpeek.core.rate_limit import rate_limit_query
 from bgpeek.core.response_filter import (
     filter_response,
@@ -117,8 +118,7 @@ async def api_query(
     try:
         result = await execute_query(
             body,
-            source_ip=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
+            **request_ctx(request),
             user_id=_real_user_id(caller),
             username=caller.username,
             user_role=caller.role.value,
@@ -182,8 +182,7 @@ async def htmx_query(
     try:
         result = await execute_query(
             body,
-            source_ip=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
+            **request_ctx(request),
             user_id=_real_user_id(caller),
             username=caller.username if caller else None,
             user_role=caller.role.value if caller else None,
@@ -245,8 +244,7 @@ async def api_multi_query(
     """Execute a query against multiple devices in parallel (JSON API)."""
     response = await execute_parallel(
         body,
-        source_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        **request_ctx(request),
         user_id=_real_user_id(caller),
         username=caller.username,
         user_role=caller.role.value,
@@ -312,8 +310,7 @@ async def htmx_multi_query(
 
     response = await execute_parallel(
         body,
-        source_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        **request_ctx(request),
         user_id=_real_user_id(caller),
         username=caller.username if caller else None,
         user_role=caller.role.value if caller else None,
