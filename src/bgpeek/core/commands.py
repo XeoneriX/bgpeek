@@ -118,6 +118,26 @@ _OPTIONAL_FLAGS: dict[tuple[str, QueryType], dict[str, str]] = {
     ("sixwind_os", QueryType.TRACEROUTE): {"source": " source {value}"},
 }
 
+# Overrides for BGP_ROUTE queries when the target is a bare host address
+# (no CIDR mask). Some platforms expose a distinct "find the covering route
+# for this IP" command that behaves as longest-prefix-match, while their
+# standard prefix command treats the bare address as /32 or /128 exact and
+# returns an empty result.
+#
+# Platforms absent from this table fall back to ``_COMMAND_TABLE`` — that is
+# correct for Cisco, Arista, and Huawei, whose standard commands already
+# perform LPM on a bare IP input.
+_IP_LOOKUP_COMMANDS: dict[tuple[str, Family], str] = {
+    # 6WIND VSR: ``prefix`` is exact-match, ``ip`` performs LPM.
+    ("sixwind_os", "v4"): "show bgp ipv4 ip {target}",
+    ("sixwind_os", "v6"): "show bgp ipv6 ip {target}",
+    # Juniper Junos: dropping ``exact`` enables LPM; ``best`` pins the result
+    # to a single winner (matters under ECMP) while keeping ``detail`` output
+    # compatible with the existing Junos parser.
+    ("juniper_junos", "v4"): "show route protocol bgp table inet.0 {target} best detail",
+    ("juniper_junos", "v6"): "show route protocol bgp table inet6.0 {target} best detail",
+}
+
 
 class UnsupportedPlatformError(ValueError):
     """Raised when no command mapping exists for a platform + query type + family."""
@@ -142,6 +162,18 @@ def target_family(target: str) -> Family:
         return "v4"
 
 
+def _is_bare_host_address(target: str) -> bool:
+    """True iff ``target`` is a single IP literal with no CIDR mask."""
+    stripped = target.strip()
+    if "/" in stripped:
+        return False
+    try:
+        ipaddress.ip_address(stripped)
+    except ValueError:
+        return False
+    return True
+
+
 def build_command(
     platform: str,
     query_type: QueryType,
@@ -158,9 +190,18 @@ def build_command(
     ``_OPTIONAL_FLAGS``; unsupported flags degrade to no-ops rather than
     errors, so a deploy-wide knob like ``BGPEEK_TRACEROUTE_NO_RESOLVE`` works
     safely across a heterogeneous device fleet.
+
+    For BGP_ROUTE queries against a bare host address, a platform-specific
+    LPM override from ``_IP_LOOKUP_COMMANDS`` is preferred over the standard
+    prefix-match template — relevant for vendors (e.g. 6WIND) whose prefix
+    command is exact-match only.
     """
     family = target_family(target)
-    template = _COMMAND_TABLE.get((platform, query_type, family))
+    template: str | None = None
+    if query_type == QueryType.BGP_ROUTE and _is_bare_host_address(target):
+        template = _IP_LOOKUP_COMMANDS.get((platform, family))
+    if template is None:
+        template = _COMMAND_TABLE.get((platform, query_type, family))
     if template is None:
         raise UnsupportedPlatformError(platform, query_type, family)
     cmd = template.format(target=target)
