@@ -12,10 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from bgpeek.config import settings
+from bgpeek.core.audit_helpers import request_ctx
 from bgpeek.core.auth import guest_user, optional_auth, scope_gate, scoped_endpoint
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
-from bgpeek.core.audit_helpers import request_ctx
 from bgpeek.core.rate_limit import rate_limit_query
 from bgpeek.core.response_filter import (
     filter_response,
