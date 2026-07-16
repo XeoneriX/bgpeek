@@ -9,7 +9,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --extra dev
       # Ignored vulns — all either unfixable upstream or not reachable at runtime.
@@ -30,7 +30,7 @@ jobs:
   trivy-fs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Trivy filesystem scan (HIGH+CRITICAL deps)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -43,7 +43,7 @@ jobs:
   trivy-config:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Trivy IaC + Dockerfile scan (HIGH+CRITICAL)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
