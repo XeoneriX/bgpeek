@@ -8,9 +8,9 @@ from types import TracebackType
 from typing import Any
 
 import structlog
-from netmiko import ConnectHandler  # type: ignore[import-untyped]
-from netmiko.base_connection import BaseConnection  # type: ignore[import-untyped]
-from netmiko.exceptions import (  # type: ignore[import-untyped]
+from netmiko import ConnectHandler
+from netmiko.base_connection import BaseConnection
+from netmiko.exceptions import (
     NetmikoAuthenticationException,
     NetmikoTimeoutException,
 )
