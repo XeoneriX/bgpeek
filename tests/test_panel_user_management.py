@@ -325,7 +325,7 @@ class TestPatch:
                     json={"allowed_actions": ["users:create"]},
                 )
         # extra="forbid" on UserUpdate → 422.
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_unknown_id(self, pool: asyncpg.Pool) -> None:
         app = _build_app(_PANEL_SVC)
@@ -419,7 +419,7 @@ class TestPasswordReset:
                     f"/api/users/{target.id}/password",
                     json={"new_password": "short"},
                 )
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
     async def test_caller_without_scope_blocked(self, pool: asyncpg.Pool) -> None:
         target = await _create_local(pool, "alice")

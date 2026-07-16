@@ -60,12 +60,12 @@ async def create_credential(
     """
     if "key" in payload.auth_type and not payload.key_name:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="key_name is required when auth_type includes 'key'",
         )
     if "password" in payload.auth_type and not payload.password:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="password is required when auth_type includes 'password'",
         )
 
