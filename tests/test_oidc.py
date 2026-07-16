@@ -220,13 +220,18 @@ class TestOidcCallbackRoute:
         assert resp.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_oidc_callback_success(self) -> None:
+        # Authlib nests the parsed ID-token claims under "userinfo"; the role
+        # claim (realm_access) lives inside it, not at the response root.
         token_data = {
+            "access_token": "at",
+            "token_type": "Bearer",
+            "expires_in": 3600,
             "userinfo": {
                 "sub": "oidc-sub-123",
                 "email": "oidc@example.com",
                 "preferred_username": "oidcuser",
+                "realm_access": {"roles": ["bgpeek-noc"]},
             },
-            "realm_access": {"roles": ["bgpeek-noc"]},
         }
 
         mock_client = AsyncMock()
@@ -251,6 +256,47 @@ class TestOidcCallbackRoute:
         assert resp.status_code == status.HTTP_303_SEE_OTHER
         assert resp.headers["location"] == "/"
         assert _COOKIE_NAME in resp.cookies
+
+    def test_oidc_callback_maps_nested_role_claim(self) -> None:
+        """Role must be resolved from the real claim path nested under userinfo.
+
+        Regression guard for the authz bug where role extraction read
+        ``token_data`` at the root while Authlib nests claims under
+        ``userinfo`` — every OIDC login silently fell back to the default
+        role. This test does *not* mock ``extract_role_from_token``; it drives
+        the real traversal against an Authlib-shaped token and asserts the
+        mapped role reaches ``upsert_oidc_user``.
+        """
+        token_data = {
+            "access_token": "at",
+            "token_type": "Bearer",
+            "expires_in": 3600,
+            "userinfo": {
+                "sub": "oidc-sub-123",
+                "email": "oidc@example.com",
+                "preferred_username": "oidcuser",
+                "realm_access": {"roles": ["bgpeek-noc"]},
+            },
+        }
+
+        mock_client = AsyncMock()
+        mock_client.authorize_access_token = AsyncMock(return_value=token_data)
+
+        upsert_mock = AsyncMock(return_value=_make_oidc_user())
+
+        app = _build_oidc_app()
+        with (
+            patch("bgpeek.api.auth.get_oidc_client", return_value=mock_client),
+            patch("bgpeek.core.oidc.settings", _oidc_settings()),
+            patch("bgpeek.api.auth.crud.upsert_oidc_user", new=upsert_mock),
+            self._patch_pool(),
+        ):
+            client = TestClient(app, follow_redirects=False)
+            resp = client.get("/auth/oidc/callback?code=abc&state=xyz")
+
+        assert resp.status_code == status.HTTP_303_SEE_OTHER
+        upsert_mock.assert_awaited_once()
+        assert upsert_mock.await_args.kwargs["role"] == UserRole.NOC
 
     def test_oidc_callback_missing_claims(self) -> None:
         token_data = {

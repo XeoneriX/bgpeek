@@ -598,8 +598,12 @@ async def oidc_callback(request: Request) -> Response:
             detail="OIDC token missing required claims (sub/preferred_username)",
         )
 
-    # Extract role from the full token data (includes realm_access, etc.)
-    role = extract_role_from_token(dict(token_data))
+    # Extract role from the ID-token claims. Authlib nests the parsed claims
+    # (realm_access, groups, roles, ...) under token_data["userinfo"], not at
+    # the token-response root — the same place username/email are read from
+    # above. oidc_role_claim is therefore relative to the claims themselves
+    # (e.g. "realm_access.roles", "groups").
+    role = extract_role_from_token(dict(userinfo))
 
     # Upsert user
     try:

@@ -93,9 +93,15 @@ python -c "import secrets; print(secrets.token_hex(32))"
 | `BGPEEK_OIDC_SERVER_URL` | _(empty)_ | Issuer URL, e.g. `https://keycloak.example.com/realms/bgpeek` |
 | `BGPEEK_OIDC_DISCOVERY_URL` | _(empty)_ | Well-known endpoint; auto-derived from `server_url` if empty |
 | `BGPEEK_OIDC_SCOPES` | `openid email profile` | Space-separated list of OIDC scopes to request |
-| `BGPEEK_OIDC_ROLE_CLAIM` | `realm_access.roles` | Dot-path to the roles claim in the ID token |
+| `BGPEEK_OIDC_ROLE_CLAIM` | `realm_access.roles` | Dot-path to the roles claim **within the ID-token claims** |
 | `BGPEEK_OIDC_ROLE_MAPPING` | _(empty)_ | JSON mapping IdP roles to bgpeek roles, e.g. `{"bgpeek-admin": "admin", "bgpeek-noc": "noc"}` |
 | `BGPEEK_OIDC_DEFAULT_ROLE` | `public` | Role assigned when no IdP role matches |
+
+> **`BGPEEK_OIDC_ROLE_CLAIM` is relative to the ID-token claims**, not the token
+> response — e.g. `realm_access.roles` or `groups`, not `userinfo.groups`. The
+> `realm_access.roles` default is **Keycloak-specific**; other providers place
+> roles elsewhere. For Ory Hydra, roles typically arrive as a flat `groups`
+> claim, so set `BGPEEK_OIDC_ROLE_CLAIM=groups`.
 
 ## SSH
 

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **OIDC role mapping now resolves against the real claim location.** Role extraction read the configured `oidc_role_claim` (default `realm_access.roles`) from the root of the token response, but Authlib nests the parsed ID-token claims under `token_data["userinfo"]` — the same place username/email are read from. The traversal therefore always missed, and **every OIDC login silently fell back to `oidc_default_role`** (`public`) regardless of the roles the IdP sent. Role is now extracted from the claims, so `BGPEEK_OIDC_ROLE_CLAIM` is relative to the claims (`realm_access.roles`, `groups`, ...) as the docs describe. Operators who worked around this by prefixing the path with `userinfo.` should drop that prefix.
 - **Deleting a device no longer returns 500 and now records an audit row.** `delete_device()` commits the row removal before the audit `INSERT` runs, so writing the audit entry with `device_id=<id>` violated the `audit_log_device_id_fkey` foreign key (`ON DELETE SET NULL` only rewrites an already-existing child row; an `INSERT` still validates the FK immediately). The result was a 500 to the user on every successful delete *and* a complete absence of `delete_device` events in the audit log. The audit row is now written with `device_id=NULL`; `device_name` still records which device was removed.
 
 ## [1.4.0] - 2026-04-23
