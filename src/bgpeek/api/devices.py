@@ -139,7 +139,10 @@ async def delete_device(
         AuditEntryCreate(
             action=AuditAction.DELETE_DEVICE,
             success=True,
-            device_id=device_id,
+            # device_id is intentionally NULL: the row was just deleted, so
+            # the FK to devices(id) would violate on INSERT. device_name
+            # preserves the context for the audit reader.
+            device_id=None,
             device_name=device.name if device else None,
             **user_ctx(caller),
             **request_ctx(request),

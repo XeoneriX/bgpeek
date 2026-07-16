@@ -908,6 +908,7 @@ def test_devices_delete_redirects_and_calls_crud() -> None:
 
     device = Device.model_validate(_DEVICE_ROW)
     delete_mock = AsyncMock(return_value=True)
+    audit_mock = AsyncMock(return_value=None)
     with (
         patch(
             "bgpeek.core.auth.user_crud.get_user_by_api_key",
@@ -925,7 +926,7 @@ def test_devices_delete_redirects_and_calls_crud() -> None:
         ),
         patch("bgpeek.ui.admin.device_crud.delete_device", new=delete_mock),
         patch("bgpeek.ui.admin.invalidate_device", new=AsyncMock()),
-        patch("bgpeek.ui.admin.log_audit", new=AsyncMock(return_value=None)),
+        patch("bgpeek.ui.admin.log_audit", new=audit_mock),
     ):
         client = TestClient(app)
         csrf_token = _csrf_token_from_page(
@@ -941,6 +942,48 @@ def test_devices_delete_redirects_and_calls_crud() -> None:
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/devices"
     delete_mock.assert_awaited_once()
+
+    # Audit row must carry device_id=NULL: the device row was just deleted,
+    # so an INSERT with device_id=<id> would violate the FK to devices(id)
+    # and bubble up as a 500 with no audit trail. device_name still records
+    # which device was deleted.
+    audit_mock.assert_awaited_once()
+    audit_entry = audit_mock.await_args.args[1]
+    assert audit_entry.device_id is None
+    assert audit_entry.device_name == device.name
+
+
+def test_api_devices_delete_writes_audit_with_null_device_id() -> None:
+    from bgpeek.models.device import Device
+
+    device = Device.model_validate(_DEVICE_ROW)
+    delete_mock = AsyncMock(return_value=True)
+    audit_mock = AsyncMock(return_value=None)
+    with (
+        patch(
+            "bgpeek.core.auth.user_crud.get_user_by_api_key",
+            new=AsyncMock(return_value=_ADMIN),
+        ),
+        patch("bgpeek.core.auth.get_pool", return_value=object()),
+        patch("bgpeek.api.devices.get_pool", return_value=object()),
+        patch(
+            "bgpeek.api.devices.crud.get_device_by_id",
+            new=AsyncMock(return_value=device),
+        ),
+        patch("bgpeek.api.devices.crud.delete_device", new=delete_mock),
+        patch("bgpeek.api.devices.invalidate_device", new=AsyncMock()),
+        patch("bgpeek.api.devices.log_audit", new=audit_mock),
+        patch("bgpeek.core.webhooks.dispatch_webhook", new=AsyncMock()),
+    ):
+        client = TestClient(app)
+        response = client.delete("/api/devices/1", headers={"X-API-Key": "any"})
+
+    assert response.status_code == 204
+    delete_mock.assert_awaited_once()
+    audit_mock.assert_awaited_once()
+    audit_entry = audit_mock.await_args.args[1]
+    assert audit_entry.device_id is None
+    assert audit_entry.device_name == device.name
 
 
 # ---------------------------------------------------------------------------
