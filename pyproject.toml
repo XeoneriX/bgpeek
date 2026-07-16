@@ -34,6 +34,8 @@ dependencies = [
     "jinja2>=3.1.6",                  # CVE fix: sandbox breakouts
     # HTTP client
     "httpx>=0.28.0",
+    "idna>=3.15",                     # CVE-2026-45409: IDNA encode bypass
+    "urllib3>=2.7.0",                 # CVE-2026-44431/44432: header leak + decompression bomb
     # Database
     "asyncpg>=0.31.0",
     "yoyo-migrations>=9.0.0",         # SQL migrations runner
@@ -41,9 +43,9 @@ dependencies = [
     # Cache
     "redis[hiredis]>=5.0",
     # SSH for routers
-    "netmiko>=4.5.0",
+    "netmiko>=4.7.0",
     # Auth
-    "authlib>=1.6.11",                # OIDC (GHSA-jj8c-mmj3-mmgv fix)
+    "authlib>=1.6.12",                # OIDC (GHSA-jj8c-mmj3-mmgv + open-redirect fix)
     "fastapi-csrf-protect>=1.0.7",    # CSRF protection for cookie-authenticated web forms
     "itsdangerous>=2.1",              # SessionMiddleware (OIDC state)
     "ldap3>=2.9.1",                   # LDAP
@@ -55,7 +57,7 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.1.0",
     # Crypto
     "cryptography>=46.0.6",           # CVE fix: 6 CVE
-    "python-multipart>=0.0.26",
+    "python-multipart>=0.0.27",       # CVE-2026-42561: DoS via unbounded headers
 ]
 
 [project.optional-dependencies]
