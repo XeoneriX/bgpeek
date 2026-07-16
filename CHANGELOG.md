@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Per-key action scopes (Phase 1).** Each user row now carries an optional `allowed_actions` JSONB column with default-deny semantics. `NULL` (the default for every existing user, the LDAP/OIDC upsert paths, and any `POST /api/users` body that omits the field) preserves the legacy role-based authorisation path. A non-null array (e.g. `["users:create", "users:read"]`) restricts the user to exactly the listed actions plus any namespace wildcards (`users:*`, `query:history:*`, `*`). The format is enforced both at the Pydantic edge and by a database `CHECK` constraint; cross-resource forms (`*:action`) and uppercase / non-ASCII identifiers are rejected. Every protected endpoint on the REST and admin-UI surface is tagged with the action it serves; scoped tokens hitting an untagged endpoint are denied with HTTP 403 (default-deny) and a `scope_violation` audit row, so a developer who forgets to tag a new endpoint cannot silently leak it. A scoped caller's `POST /api/users` request that would mint a user with wider scopes than their own — including a legacy unrestricted admin — is rejected with HTTP 403 and a `privilege_escalation_attempt` audit row. Designed against threats T1, T1', T2, T3, T4, T5, T6, T7, T8, T9, and T10 in the internal threat model.
+- **Dependency bumps for disclosed CVEs.** `idna>=3.15` (CVE-2026-45409, IDNA encode bypass), `urllib3>=2.7.0` (CVE-2026-44431/44432, header leak + decompression bomb), `python-multipart>=0.0.27` (CVE-2026-42561, DoS via unbounded headers), `authlib>=1.6.12` (open-redirect fix on top of GHSA-jj8c-mmj3-mmgv), and `netmiko>=4.7.0`. `idna` and `urllib3` are now explicit direct pins so the floor holds regardless of transitive resolution.
 
 ### Added
 
@@ -20,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BGP-route input validation now rejects overly broad prefixes** with HTTP 400 `prefix too broad`. Default cutoff `/8` IPv4 / `/16` IPv6 (see new env vars above). The existing `/24` IPv4 / `/48` IPv6 upper bound is unchanged. Ping and traceroute targets are unaffected — they already require a single host.
+
+### Fixed
+
+- **Deleting a device no longer returns 500 and now records an audit row.** `delete_device()` commits the row removal before the audit `INSERT` runs, so writing the audit entry with `device_id=<id>` violated the `audit_log_device_id_fkey` foreign key (`ON DELETE SET NULL` only rewrites an already-existing child row; an `INSERT` still validates the FK immediately). The result was a 500 to the user on every successful delete *and* a complete absence of `delete_device` events in the audit log. The audit row is now written with `device_id=NULL`; `device_name` still records which device was removed.
 
 ## [1.4.0] - 2026-04-23
 
