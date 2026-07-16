@@ -10,7 +10,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # need full history + tags for `git describe`
       - name: Build release notes
@@ -57,7 +57,7 @@ jobs:
   #   permissions:
   #     id-token: write
   #   steps:
-  #     - uses: actions/checkout@v6
+  #     - uses: actions/checkout@v7
   #     - uses: astral-sh/setup-uv@v4
   #     - run: uv build
   #     - uses: pypa/gh-action-pypi-publish@release/v1
@@ -69,7 +69,7 @@ jobs:
   #     contents: read
   #     packages: write
   #   steps:
-  #     - uses: actions/checkout@v6
+  #     - uses: actions/checkout@v7
   #     - uses: docker/setup-buildx-action@v3
   #     - uses: docker/login-action@v3
   #       with:
