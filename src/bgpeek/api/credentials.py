@@ -8,7 +8,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from bgpeek.config import settings
-from bgpeek.core.auth import require_role
+from bgpeek.core.auth import require_role, scoped_endpoint
 from bgpeek.core.ssh import SSHClient, SSHError
 from bgpeek.db import credentials as crud
 from bgpeek.db import devices as device_crud
@@ -26,6 +26,7 @@ _admin = require_role(UserRole.ADMIN)
 
 
 @router.get("", response_model=list[CredentialWithUsage])
+@scoped_endpoint("credentials:read")
 async def list_credentials(
     _caller: User = Depends(_admin),  # noqa: B008
 ) -> list[CredentialWithUsage]:
@@ -34,6 +35,7 @@ async def list_credentials(
 
 
 @router.get("/{credential_id}", response_model=Credential)
+@scoped_endpoint("credentials:read")
 async def get_credential(
     credential_id: int,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -46,6 +48,7 @@ async def get_credential(
 
 
 @router.post("", response_model=Credential, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("credentials:create")
 async def create_credential(
     payload: CredentialCreate,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -57,12 +60,12 @@ async def create_credential(
     """
     if "key" in payload.auth_type and not payload.key_name:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="key_name is required when auth_type includes 'key'",
         )
     if "password" in payload.auth_type and not payload.password:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="password is required when auth_type includes 'password'",
         )
 
@@ -76,6 +79,7 @@ async def create_credential(
 
 
 @router.patch("/{credential_id}", response_model=Credential)
+@scoped_endpoint("credentials:update")
 async def update_credential(
     credential_id: int,
     payload: CredentialUpdate,
@@ -89,6 +93,7 @@ async def update_credential(
 
 
 @router.delete("/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("credentials:delete")
 async def delete_credential(
     credential_id: int,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -103,6 +108,7 @@ async def delete_credential(
 
 
 @router.post("/{credential_id}/test")
+@scoped_endpoint("credentials:read")
 async def test_credential(
     credential_id: int,
     device_id: int = Query(..., description="Device to test SSH connectivity against"),  # noqa: B008, PT028

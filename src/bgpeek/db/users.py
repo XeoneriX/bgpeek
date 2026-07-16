@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 
 import asyncpg
@@ -12,6 +13,11 @@ import structlog
 from bgpeek.models.user import User, UserCreate, UserCreateLocal, UserRole, UserUpdate
 
 log = structlog.get_logger(__name__)
+
+
+def _serialise_actions(actions: list[str] | None) -> str | None:
+    """Encode an allowed_actions list as JSON for asyncpg. None stays None."""
+    return None if actions is None else json.dumps(actions)
 
 
 class IdentityProviderConflictError(Exception):
@@ -75,8 +81,9 @@ async def create_user(pool: asyncpg.Pool, payload: UserCreate) -> tuple[User, st
 
     row = await pool.fetchrow(
         """
-        INSERT INTO users (username, email, role, auth_provider, api_key_hash, enabled)
-        VALUES ($1, $2, $3, 'api_key', $4, $5)
+        INSERT INTO users (username, email, role, auth_provider, api_key_hash,
+                           enabled, allowed_actions)
+        VALUES ($1, $2, $3, 'api_key', $4, $5, $6::jsonb)
         RETURNING *
         """,
         payload.username,
@@ -84,6 +91,7 @@ async def create_user(pool: asyncpg.Pool, payload: UserCreate) -> tuple[User, st
         payload.role.value,
         _hash_key(plaintext_key),
         payload.enabled,
+        _serialise_actions(payload.allowed_actions),
     )
     assert row is not None
     return User.model_validate(dict(row)), plaintext_key
@@ -110,6 +118,15 @@ async def list_users(pool: asyncpg.Pool) -> list[User]:
     return [User.model_validate(dict(r)) for r in rows]
 
 
+# `allowed_actions` is INTENTIONALLY excluded from this set. Mutating scopes
+# via the generic update path would skip the `_enforce_subsumption` guard in
+# api/auth.py, so a Phase 2 PATCH endpoint that simply piped the request body
+# into `UserUpdate` and then `crud.update_user` would let a scoped caller
+# silently grant themselves wider scopes — a one-line privilege escalation.
+# Phase 2 must add a dedicated `update_user_actions(pool, user_id, actions)`
+# function that bakes subsumption in, and a corresponding `UserActionsUpdate`
+# input model. Until then, attempting to update `allowed_actions` via this
+# path raises ValueError.
 _UPDATABLE_COLUMNS: frozenset[str] = frozenset({"username", "email", "role", "enabled"})
 
 
@@ -138,6 +155,36 @@ async def delete_user(pool: asyncpg.Pool, user_id: int) -> bool:
     """Delete a user. Returns True if a row was removed."""
     result: str = await pool.execute("DELETE FROM users WHERE id = $1", user_id)
     return result.endswith(" 1")
+
+
+async def count_enabled_admins(pool: asyncpg.Pool) -> int:
+    """Count rows with ``role='admin' AND enabled IS TRUE``.
+
+    Used by the PATCH-user last-admin-lockout guard: a change that would
+    drop the count to zero is refused with HTTP 409 so the system can't be
+    locked out of admin access via a single request.
+    """
+    val = await pool.fetchval("SELECT count(*) FROM users WHERE role = 'admin' AND enabled IS TRUE")
+    return int(val or 0)
+
+
+async def invalidate_user_sessions(pool: asyncpg.Pool, user_id: int) -> None:
+    """Bump ``sessions_valid_after`` to ``now()`` for a single user.
+
+    All outstanding JWTs for that user become invalid on their next request
+    (`_resolve_jwt` rejects tokens with `iat` predating this column). Used
+    by admin password reset and by ``enabled=false`` so we don't have to
+    enumerate live tokens.
+
+    Deliberately not a column on ``UserUpdate`` and not in
+    ``_UPDATABLE_COLUMNS`` — bumping the epoch is a security action with
+    consequences (every device the user is logged in from gets kicked
+    out), not a profile field.
+    """
+    await pool.execute(
+        "UPDATE users SET sessions_valid_after = now() WHERE id = $1",
+        user_id,
+    )
 
 
 async def create_local_user(pool: asyncpg.Pool, payload: UserCreateLocal) -> User:

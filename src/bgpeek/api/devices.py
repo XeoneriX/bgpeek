@@ -6,7 +6,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
-from bgpeek.core.auth import authenticate, require_role
+from bgpeek.core.auth import require_role, scope_gate, scoped_endpoint
 from bgpeek.core.cache import invalidate_device
 from bgpeek.db import devices as crud
 from bgpeek.db.audit import log_audit
@@ -22,9 +22,10 @@ _admin = require_role(UserRole.ADMIN)
 
 
 @router.get("", response_model=list[Device])
+@scoped_endpoint("devices:read")
 async def list_devices(
     enabled_only: bool = False,
-    _caller: User = Depends(authenticate),  # noqa: B008
+    _caller: User = Depends(scope_gate),  # noqa: B008
 ) -> list[Device]:
     """List all devices, optionally filtered to enabled only."""
     include_restricted = _caller.role in (UserRole.ADMIN, UserRole.NOC)
@@ -34,9 +35,10 @@ async def list_devices(
 
 
 @router.get("/{device_id}", response_model=Device)
+@scoped_endpoint("devices:read")
 async def get_device(
     device_id: int,
-    _caller: User = Depends(authenticate),  # noqa: B008
+    _caller: User = Depends(scope_gate),  # noqa: B008
 ) -> Device:
     """Get a single device by id."""
     device = await crud.get_device_by_id(get_pool(), device_id)
@@ -46,6 +48,7 @@ async def get_device(
 
 
 @router.post("", response_model=Device, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("devices:create")
 async def create_device(
     payload: DeviceCreate,
     request: Request,
@@ -81,6 +84,7 @@ async def create_device(
 
 
 @router.patch("/{device_id}", response_model=Device)
+@scoped_endpoint("devices:update")
 async def update_device(
     device_id: int,
     payload: DeviceUpdate,
@@ -115,6 +119,7 @@ async def update_device(
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("devices:delete")
 async def delete_device(
     device_id: int,
     request: Request,
@@ -134,7 +139,10 @@ async def delete_device(
         AuditEntryCreate(
             action=AuditAction.DELETE_DEVICE,
             success=True,
-            device_id=device_id,
+            # device_id is intentionally NULL: the row was just deleted, so
+            # the FK to devices(id) would violate on INSERT. device_name
+            # preserves the context for the audit reader.
+            device_id=None,
             device_name=device.name if device else None,
             **user_ctx(caller),
             **request_ctx(request),

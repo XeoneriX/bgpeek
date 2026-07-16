@@ -57,6 +57,7 @@ class QueryResponse(BaseModel):
     parsed_routes: list[BGPRoute] = Field(default_factory=list)
     resolved_target: str | None = None
     result_id: str | None = None
+    lpm_hidden: bool = False
 
 
 class StoredResult(BaseModel):

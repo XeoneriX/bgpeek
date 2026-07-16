@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from bgpeek.core.auth import require_role
+from bgpeek.core.auth import require_role, scoped_endpoint
 from bgpeek.core.community_labels import refresh_cache
 from bgpeek.db import community_labels as crud
 from bgpeek.db.pool import get_pool
@@ -27,6 +27,7 @@ async def list_labels() -> list[CommunityLabel]:
 
 
 @router.post("", response_model=CommunityLabel, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("community_labels:write")
 async def create_label(
     payload: CommunityLabelCreate,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -47,6 +48,7 @@ async def create_label(
 
 
 @router.patch("/{label_id}", response_model=CommunityLabel)
+@scoped_endpoint("community_labels:write")
 async def update_label(
     label_id: int,
     payload: CommunityLabelUpdate,
@@ -61,6 +63,7 @@ async def update_label(
 
 
 @router.delete("/{label_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("community_labels:write")
 async def delete_label(
     label_id: int,
     _caller: User = Depends(_admin),  # noqa: B008

@@ -24,6 +24,9 @@ class AuditAction(StrEnum):
     CREATE_USER = "create_user"
     UPDATE_USER = "update_user"
     DELETE_USER = "delete_user"
+    RESET_PASSWORD = "reset_password"  # noqa: S105 — audit action label, not a password
+    SCOPE_VIOLATION = "scope_violation"
+    PRIVILEGE_ESCALATION_ATTEMPT = "privilege_escalation_attempt"
 
 
 class AuditEntryCreate(BaseModel):

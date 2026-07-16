@@ -3,23 +3,25 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import urlparse
 
 import asyncpg
 import jwt as pyjwt
 import structlog
-from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Cookie, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi_csrf_protect import CsrfProtect
 
 from bgpeek.config import settings
 from bgpeek.core.audit_helpers import request_ctx, user_ctx
-from bgpeek.core.auth import authenticate, require_role
+from bgpeek.core.auth import authenticate, require_role, role_subsumes, scoped_endpoint
 from bgpeek.core.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf
 from bgpeek.core.jwt import create_token, decode_token
 from bgpeek.core.jwt_revoke import revoke as revoke_jwt
 from bgpeek.core.ldap import authenticate_ldap
 from bgpeek.core.oidc import extract_role_from_token, get_oidc_client
 from bgpeek.core.rate_limit import rate_limit_login
+from bgpeek.core.scopes import subsumes as scopes_subsume
 from bgpeek.core.templates import templates
 from bgpeek.db import users as crud
 from bgpeek.db.audit import log_audit
@@ -28,6 +30,7 @@ from bgpeek.models.audit import AuditAction, AuditEntryCreate
 from bgpeek.models.user import (
     LoginRequest,
     LoginResponse,
+    PasswordResetRequest,
     User,
     UserAdmin,
     UserCreate,
@@ -50,6 +53,20 @@ def _normalize_email(raw: str) -> str | None:
     """Normalize optional email form value."""
     value = raw.strip()
     return value or None
+
+
+def _safe_next(next_url: str | None) -> str | None:
+    """Return ``next_url`` only if it's a same-origin relative path.
+
+    Rejects empty, protocol-relative (``//evil``), and absolute URLs to avoid
+    open-redirect on the post-login bounce.
+    """
+    if not next_url or not next_url.startswith("/") or next_url.startswith("//"):
+        return None
+    parsed = urlparse(next_url)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return next_url
 
 
 def _render_account_settings(
@@ -117,6 +134,7 @@ def _render_account_settings_with_csrf(
 async def login_page(
     request: Request,
     csrf_protect: CsrfProtect = Depends(),  # noqa: B008
+    next_url: str | None = Query(default=None, alias="next"),  # noqa: B008
 ) -> HTMLResponse:
     """Render the login form."""
     csrf_token, signed_token = issue_csrf_token(csrf_protect)
@@ -130,6 +148,7 @@ async def login_page(
             "oidc_enabled": settings.oidc_enabled,
             "allow_guest_continue": settings.access_mode in ("guest", "open"),
             "csrf_token": csrf_token,
+            "next_url": _safe_next(next_url),
         },
     )
     set_csrf_cookie(csrf_protect, response, signed_token)
@@ -143,6 +162,7 @@ async def login_submit(
     csrf_protect: CsrfProtect = Depends(),  # noqa: B008
     username: str = Form(),  # noqa: B008
     password: str = Form(),  # noqa: B008
+    next_url: str | None = Form(default=None, alias="next"),  # noqa: B008
     _rl: None = Depends(rate_limit_login),  # noqa: B008
 ) -> Response:
     """Handle web login form submission."""
@@ -205,6 +225,7 @@ async def login_submit(
                 "oidc_enabled": settings.oidc_enabled,
                 "allow_guest_continue": settings.access_mode in ("guest", "open"),
                 "csrf_token": csrf_token,
+                "next_url": _safe_next(next_url),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -220,7 +241,8 @@ async def login_submit(
     token = create_token(user.id, user.username, user.role.value)
     max_age = settings.jwt_expire_minutes * 60
 
-    redirect_response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    redirect_target = _safe_next(next_url) or "/"
+    redirect_response = RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
     redirect_response.set_cookie(
         key=_COOKIE_NAME,
         value=token,
@@ -576,8 +598,12 @@ async def oidc_callback(request: Request) -> Response:
             detail="OIDC token missing required claims (sub/preferred_username)",
         )
 
-    # Extract role from the full token data (includes realm_access, etc.)
-    role = extract_role_from_token(dict(token_data))
+    # Extract role from the ID-token claims. Authlib nests the parsed claims
+    # (realm_access, groups, roles, ...) under token_data["userinfo"], not at
+    # the token-response root — the same place username/email are read from
+    # above. oidc_role_claim is therefore relative to the claims themselves
+    # (e.g. "realm_access.roles", "groups").
+    role = extract_role_from_token(dict(userinfo))
 
     # Upsert user
     try:
@@ -634,7 +660,67 @@ async def oidc_callback(request: Request) -> Response:
 _admin = require_role(UserRole.ADMIN)
 
 
+async def _enforce_subsumption(
+    *,
+    caller: User,
+    granted: list[str] | None,
+    target_username: str,
+    request: Request,
+) -> None:
+    """Reject scope-grant attempts that exceed the caller's own scopes.
+
+    Subsumption is the core T1 / T1' invariant: a scoped caller cannot mint
+    a user whose scopes are wider than their own — including (especially) a
+    user with ``allowed_actions=None`` (legacy admin god-mode). Callers
+    invoke this *before* mutating state so a denied attempt costs nothing.
+    """
+    if scopes_subsume(caller.allowed_actions, granted):
+        return
+    await log_audit(
+        get_pool(),
+        AuditEntryCreate(
+            action=AuditAction.PRIVILEGE_ESCALATION_ATTEMPT,
+            success=False,
+            **user_ctx(caller),
+            **request_ctx(request),
+            error_message=(
+                f"target_username={target_username} "
+                f"caller_scopes={caller.allowed_actions} "
+                f"granted_scopes={granted}"
+            ),
+        ),
+    )
+    raise HTTPException(
+        status.HTTP_403_FORBIDDEN,
+        detail="cannot grant scopes wider than your own",
+    )
+
+
+async def _audit_role_escalation(
+    caller: User, target_username: str, request: Request, *, reason: str
+) -> None:
+    """Log a privilege-escalation attempt with consistent shape.
+
+    Used by every admin-mutation endpoint that gates on
+    ``role_subsumes`` — keeping the audit row format uniform makes it
+    much easier to alert on. ``reason`` should describe the specific
+    check that failed (caller-vs-target role, target-role escalation,
+    cross-role password reset).
+    """
+    await log_audit(
+        get_pool(),
+        AuditEntryCreate(
+            action=AuditAction.PRIVILEGE_ESCALATION_ATTEMPT,
+            success=False,
+            **user_ctx(caller),
+            **request_ctx(request),
+            error_message=f"{reason} target_username={target_username}",
+        ),
+    )
+
+
 @router.post("/api/users", response_model=UserCreated, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("users:create")
 async def create_user(
     payload: UserCreate,
     request: Request,
@@ -647,6 +733,12 @@ async def create_user(
     the server generate a strong value; supplying the field remains supported
     for one more release cycle but is deprecated (removal in v1.5.0).
     """
+    await _enforce_subsumption(
+        caller=caller,
+        granted=payload.allowed_actions,
+        target_username=payload.username,
+        request=request,
+    )
     try:
         created, plaintext_key = await crud.create_user(get_pool(), payload)
     except asyncpg.UniqueViolationError as exc:
@@ -673,12 +765,37 @@ async def create_user(
 
 
 @router.post("/api/users/local", response_model=UserAdmin, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("users:create")
 async def create_local_user(
     payload: UserCreateLocal,
     request: Request,
     caller: User = Depends(_admin),  # noqa: B008
 ) -> User:
-    """Create a new local (password) user (admin only)."""
+    """Create a new local (password) user (admin only).
+
+    Local users carry no scope payload — ``UserCreateLocal`` deliberately
+    excludes ``allowed_actions`` so the row is always created in legacy
+    role-based mode. That means scope-subsumption (a scoped caller cannot
+    grant ``None`` scopes) is the wrong gate here: it would block
+    ``noc-svc`` from ever creating a local user even though local-mode
+    grants no scopes at all. Apply role-subsumption instead — the caller
+    can mint a user only at or below their own role, with the existing
+    ``_admin`` dependency setting the floor.
+    """
+    if not role_subsumes(caller.role, payload.role):
+        await _audit_role_escalation(
+            caller,
+            payload.username,
+            request,
+            reason=(
+                f"local-create role escalation: caller_role={caller.role.value} "
+                f"target_role={payload.role.value}"
+            ),
+        )
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="cannot create user with role higher than your own",
+        )
     try:
         created = await crud.create_local_user(get_pool(), payload)
     except asyncpg.UniqueViolationError as exc:
@@ -700,6 +817,7 @@ async def create_local_user(
 
 
 @router.get("/api/users", response_model=list[UserAdmin])
+@scoped_endpoint("users:read")
 async def list_users(
     _caller: User = Depends(_admin),  # noqa: B008
 ) -> list[User]:
@@ -708,6 +826,7 @@ async def list_users(
 
 
 @router.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("users:delete")
 async def delete_user(
     user_id: int,
     request: Request,
@@ -730,3 +849,183 @@ async def delete_user(
             ),
         ),
     )
+
+
+@router.patch("/api/users/{user_id}", response_model=UserAdmin)
+@scoped_endpoint("users:update")
+async def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    request: Request,
+    caller: User = Depends(_admin),  # noqa: B008
+) -> User:
+    """Partial update of a user (admin only).
+
+    Guards (in order):
+        1. Target exists (404 if not).
+        2. Caller's role >= target's current role (403 + audit if not).
+        3. If ``payload.role`` is set, caller's role >= new role (403 + audit).
+        4. Last-admin lockout: if the change would leave zero enabled
+           admins, refuse (409). Covers both ``enabled=false`` on the only
+           admin and ``role=<not admin>`` demoting the only admin.
+
+    On ``enabled=false`` we bump ``sessions_valid_after`` so every live
+    JWT for the target is rejected on its next request. ``allowed_actions``
+    is rejected at the Pydantic layer (`UserUpdate.model_config["extra"]
+    == "forbid"`); a Phase 2 endpoint will add scope mutation with its
+    own subsumption guard.
+    """
+    target = await crud.get_user_by_id(get_pool(), user_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    if not role_subsumes(caller.role, target.role):
+        await _audit_role_escalation(
+            caller,
+            target.username,
+            request,
+            reason=(
+                f"PATCH on higher-role target: caller_role={caller.role.value} "
+                f"target_role={target.role.value}"
+            ),
+        )
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="cannot modify user with role higher than your own",
+        )
+
+    if payload.role is not None and not role_subsumes(caller.role, payload.role):
+        await _audit_role_escalation(
+            caller,
+            target.username,
+            request,
+            reason=(
+                f"PATCH role escalation: caller_role={caller.role.value} "
+                f"new_role={payload.role.value}"
+            ),
+        )
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="cannot grant role higher than your own",
+        )
+
+    # Last-admin lockout — only relevant when the target is currently an
+    # enabled admin and the change would either disable them or demote.
+    # We compute "would the row remain an enabled admin after PATCH" and
+    # only count when it would not.
+    if target.role == UserRole.ADMIN and target.enabled:
+        will_remain_admin = payload.enabled is not False and (
+            payload.role is None or payload.role == UserRole.ADMIN
+        )
+        if not will_remain_admin:
+            admin_count = await crud.count_enabled_admins(get_pool())
+            if admin_count <= 1:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="cannot disable or demote the last enabled admin",
+                )
+
+    try:
+        updated = await crud.update_user(get_pool(), user_id, payload)
+    except asyncpg.UniqueViolationError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="username already exists",
+        ) from exc
+
+    if updated is None:
+        # Race: target deleted between the fetch above and the update.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    if payload.enabled is False:
+        await crud.invalidate_user_sessions(get_pool(), user_id)
+
+    await log_audit(
+        get_pool(),
+        AuditEntryCreate(
+            action=AuditAction.UPDATE_USER,
+            success=True,
+            **user_ctx(caller),
+            **request_ctx(request),
+            error_message=(
+                f"target_username={updated.username}, "
+                f"fields={sorted(payload.model_dump(exclude_unset=True).keys())}"
+            ),
+        ),
+    )
+    return updated
+
+
+@router.post(
+    "/api/users/{user_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@scoped_endpoint("users:reset_password")
+async def admin_reset_password(
+    user_id: int,
+    payload: PasswordResetRequest,
+    request: Request,
+    caller: User = Depends(_admin),  # noqa: B008
+) -> Response:
+    """Admin-driven password reset for a local-auth user.
+
+    Separate from PATCH per industry practice (Keycloak, Okta, AWS
+    Cognito, MS Graph all expose a dedicated endpoint). Reasons:
+
+        * Side effects PATCH shouldn't have — bumps ``sessions_valid_after``
+          so every live JWT for the target dies.
+        * Audit clarity — ``RESET_PASSWORD`` is a high-value security
+          event and shouldn't be conflated with profile updates.
+        * Forward-compat — ``users:reset_password`` is a separate scope
+          so a future "support" role can rotate credentials without
+          having edit-everything power.
+
+    Only accepts ``auth_provider='local'``; LDAP / OIDC passwords aren't
+    ours to manage.
+    """
+    target = await crud.get_user_by_id(get_pool(), user_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    if target.auth_provider != "local":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"password reset only available for local users; "
+                f"target has auth_provider={target.auth_provider!r}"
+            ),
+        )
+
+    if not role_subsumes(caller.role, target.role):
+        await _audit_role_escalation(
+            caller,
+            target.username,
+            request,
+            reason=(
+                f"password reset on higher-role target: "
+                f"caller_role={caller.role.value} target_role={target.role.value}"
+            ),
+        )
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="cannot reset password for user with role higher than your own",
+        )
+
+    updated = await crud.update_local_user_password(get_pool(), user_id, payload.new_password)
+    if not updated:
+        # Race: target deleted between fetch and update.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="user not found")
+
+    await crud.invalidate_user_sessions(get_pool(), user_id)
+
+    await log_audit(
+        get_pool(),
+        AuditEntryCreate(
+            action=AuditAction.RESET_PASSWORD,
+            success=True,
+            **user_ctx(caller),
+            **request_ctx(request),
+            error_message=f"target_username={target.username}",
+        ),
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from bgpeek.core.auth import require_role
+from bgpeek.core.auth import require_role, scoped_endpoint
 from bgpeek.core.webhooks import send_test_payload
 from bgpeek.db import webhooks as crud
 from bgpeek.db.pool import get_pool
@@ -17,6 +17,7 @@ _admin = require_role(UserRole.ADMIN)
 
 
 @router.get("", response_model=list[Webhook])
+@scoped_endpoint("webhooks:read")
 async def list_webhooks(
     _caller: User = Depends(_admin),  # noqa: B008
 ) -> list[Webhook]:
@@ -26,6 +27,7 @@ async def list_webhooks(
 
 
 @router.get("/{webhook_id}", response_model=Webhook)
+@scoped_endpoint("webhooks:read")
 async def get_webhook(
     webhook_id: int,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -38,6 +40,7 @@ async def get_webhook(
 
 
 @router.post("", response_model=Webhook, status_code=status.HTTP_201_CREATED)
+@scoped_endpoint("webhooks:create")
 async def create_webhook(
     payload: WebhookCreate,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -48,6 +51,7 @@ async def create_webhook(
 
 
 @router.patch("/{webhook_id}", response_model=Webhook)
+@scoped_endpoint("webhooks:update")
 async def update_webhook(
     webhook_id: int,
     payload: WebhookUpdate,
@@ -61,6 +65,7 @@ async def update_webhook(
 
 
 @router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+@scoped_endpoint("webhooks:delete")
 async def delete_webhook(
     webhook_id: int,
     _caller: User = Depends(_admin),  # noqa: B008
@@ -72,6 +77,7 @@ async def delete_webhook(
 
 
 @router.post("/{webhook_id}/test")
+@scoped_endpoint("webhooks:read")
 async def ping_webhook(
     webhook_id: int,
     _caller: User = Depends(_admin),  # noqa: B008

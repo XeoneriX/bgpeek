@@ -12,15 +12,20 @@ from bgpeek.config import settings
 from bgpeek.core.bgp_parser import parse_bgp_output
 from bgpeek.core.cache import get_cached, set_cached
 from bgpeek.core.circuit_breaker import is_device_available, record_failure, record_success
-from bgpeek.core.commands import UnsupportedPlatformError, build_command
+from bgpeek.core.commands import (
+    UnsupportedPlatformError,
+    build_command,
+    supported_optional_flags,
+)
 from bgpeek.core.dns import DNSResolutionError, resolve_target
-from bgpeek.core.output_filter import filter_route_text, strip_router_banners
+from bgpeek.core.output_filter import filter_route_text, has_any_prefix, strip_router_banners
 from bgpeek.core.rpki import validate_routes
 from bgpeek.core.ssh import SSHClient, SSHError
 from bgpeek.core.validators import (
     TargetValidationError,
     diagnostic_target_rejection,
     is_bogon,
+    is_host_lookup,
     parse_target,
     validate_target,
 )
@@ -118,6 +123,9 @@ async def execute_query(
                 effective_target,
                 max_v4=settings.max_prefix_v4,
                 max_v6=settings.max_prefix_v6,
+                min_v4=settings.min_prefix_v4,
+                min_v6=settings.min_prefix_v6,
+                accept_bare_ip=settings.accept_bare_ip,
             )
         else:
             # ping/traceroute: always reject targets that are meaningless
@@ -145,7 +153,7 @@ async def execute_query(
                 pass  # not a valid IP, DNS resolution may have failed
 
         # 1b. Check cache
-        cached = await get_cached(request)
+        cached = await get_cached(request, user_role=user_role)
         if cached is not None:
             runtime_ms = int((time.monotonic() - start) * 1000)
             cached.cached = True
@@ -201,10 +209,32 @@ async def execute_query(
         except ValueError:
             pass  # not a valid IP (shouldn't happen after DNS resolution)
 
-        # Build command (use resolved IP for the actual SSH command)
+        # Build command (use resolved IP for the actual SSH command).
+        # `no_resolve` is a deploy-wide knob; it's harmless to forward to
+        # non-traceroute query types because build_command honours flags
+        # only when the (platform, query_type) pair declares support.
         command = build_command(
-            device.platform, request.query_type, effective_target, source_ip=device_source_ip
+            device.platform,
+            request.query_type,
+            effective_target,
+            source_ip=device_source_ip,
+            no_resolve=settings.traceroute_no_resolve,
         )
+
+        # Observability for the BGPEEK_TRACEROUTE_NO_RESOLVE knob:
+        # `requested` is what the operator set in env, `effective` is whether
+        # the platform declared support — surfacing both lets ops grep
+        # VictoriaLogs to confirm the knob actually fires (vs. silently
+        # ignored on a platform without a no_resolve entry).
+        if request.query_type == QueryType.TRACEROUTE and settings.traceroute_no_resolve:
+            log.info(
+                "traceroute_no_resolve",
+                device=device.name,
+                platform=device.platform,
+                no_resolve_requested=True,
+                no_resolve_effective="no_resolve"
+                in supported_optional_flags(device.platform, QueryType.TRACEROUTE),
+            )
 
         # 4. Resolve SSH credentials: device-level → global default → fail
         ssh_user = settings.ssh_username
@@ -254,12 +284,25 @@ async def execute_query(
             if request.query_type == QueryType.BGP_ROUTE
             else raw_output
         )
+        lpm_hidden = False
         if request.query_type == QueryType.BGP_ROUTE and not _role_bypasses_filter(user_role):
             filtered_output = filter_route_text(
                 cleaned_output,
                 max_v4=settings.max_prefix_v4,
                 max_v6=settings.max_prefix_v6,
             )
+            # If the caller asked about a bare host address and the router's
+            # LPM match was more-specific than the cutoff, the filter will
+            # have stripped every route block. Signal this so the UI can
+            # show a clear hint instead of a silent empty result.
+            if settings.accept_bare_ip and has_any_prefix(cleaned_output):
+                try:
+                    target_net = parse_target(effective_target)
+                    target_is_host = is_host_lookup(target_net)
+                except ValueError:
+                    target_is_host = False
+                if target_is_host and not has_any_prefix(filtered_output):
+                    lpm_hidden = True
         else:
             filtered_output = cleaned_output
 
@@ -289,10 +332,11 @@ async def execute_query(
             runtime_ms=runtime_ms,
             parsed_routes=parsed_routes,
             resolved_target=resolved_target,
+            lpm_hidden=lpm_hidden,
         )
 
         # 10. Store in cache
-        await set_cached(request, response)
+        await set_cached(request, response, user_role=user_role)
 
         # 11. Dispatch webhook (fire-and-forget)
         from bgpeek.core.webhooks import dispatch_webhook

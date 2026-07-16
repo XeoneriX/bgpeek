@@ -12,10 +12,19 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --extra dev
-      # CVE-2026-3219 affects pip 26.0.1 with no fix available upstream;
-      # bgpeek does not invoke pip at runtime, so the audit is not actionable yet.
-      # Drop the ignore once a fixed pip lands.
-      - run: uv run pip-audit --ignore-vuln CVE-2026-3219
+      # Ignored vulns — all either unfixable upstream or not reachable at runtime.
+      # Review this list on every dependency sweep and drop entries once a fix lands.
+      #   pip (CVE-2026-3219, PYSEC-2026-196, PYSEC-2026-2876): pip is a build tool,
+      #     never invoked by bgpeek at runtime; the container image ships no pip step.
+      #   paramiko (PYSEC-2026-2858): no fixed release published upstream; netmiko
+      #     pins the vulnerable range. Accepted residual risk — SSH targets are the
+      #     operator's own routers, not attacker-controlled servers (see SECURITY_MODEL.md).
+      - run: >-
+          uv run pip-audit
+          --ignore-vuln CVE-2026-3219
+          --ignore-vuln PYSEC-2026-196
+          --ignore-vuln PYSEC-2026-2876
+          --ignore-vuln PYSEC-2026-2858
       - run: uv run bandit -c bandit.yaml -ll -r src/
 
   trivy-fs:

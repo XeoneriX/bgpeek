@@ -7,6 +7,7 @@ import pytest
 from bgpeek.core.commands import (
     UnsupportedPlatformError,
     build_command,
+    supported_optional_flags,
     supported_platforms,
     target_family,
 )
@@ -88,6 +89,82 @@ def test_sixwind_os_bgp_v6_command() -> None:
     assert cmd == "show bgp ipv6 prefix 2001:db8::/48"
 
 
+# ---- Bare-IP BGP lookup (vendor-aware LPM dispatch) ----
+
+
+def test_sixwind_os_bare_ipv4_uses_ip_lookup() -> None:
+    # 6WIND ``prefix`` is exact-match; ``ip`` is the LPM/covering-route command.
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.1")
+    assert cmd == "show bgp ipv4 ip 1.1.1.1"
+
+
+def test_sixwind_os_bare_ipv6_uses_ip_lookup() -> None:
+    cmd = build_command("sixwind_os", QueryType.BGP_ROUTE, "2001:4860:4860::8888")
+    assert cmd == "show bgp ipv6 ip 2001:4860:4860::8888"
+
+
+def test_sixwind_os_explicit_prefix_keeps_prefix_command() -> None:
+    # Only bare host addresses route to the LPM override. Explicit prefixes
+    # (including /32 and /128) use the standard ``prefix`` template.
+    assert (
+        build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.0/24")
+        == "show bgp ipv4 prefix 1.1.1.0/24"
+    )
+    assert (
+        build_command("sixwind_os", QueryType.BGP_ROUTE, "1.1.1.1/32")
+        == "show bgp ipv4 prefix 1.1.1.1/32"
+    )
+
+
+def test_sixwind_os_bare_ip_ping_unaffected() -> None:
+    # The LPM override only applies to BGP_ROUTE; ping/traceroute must still
+    # use the standard ``cmd ping`` template with the bare target.
+    assert build_command("sixwind_os", QueryType.PING, "1.1.1.1") == "cmd ping 1.1.1.1 count 6"
+
+
+def test_junos_bare_ipv4_drops_exact_uses_best() -> None:
+    # Junos `exact` forces strict prefix match (same class of bug as 6WIND
+    # `prefix`). For a bare host address we drop `exact` and pin to `best`
+    # so ECMP groups collapse to a single covering route.
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "1.1.1.1")
+    assert cmd == "show route protocol bgp table inet.0 1.1.1.1 best detail"
+
+
+def test_junos_bare_ipv6_drops_exact_uses_best() -> None:
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "2001:4860:4860::8888")
+    assert cmd == "show route protocol bgp table inet6.0 2001:4860:4860::8888 best detail"
+
+
+def test_junos_explicit_prefix_keeps_exact_detail() -> None:
+    # Explicit prefixes continue to use `exact detail` — we want exact-match
+    # semantics when the operator explicitly types a prefix.
+    assert (
+        build_command("juniper_junos", QueryType.BGP_ROUTE, "1.1.1.0/24")
+        == "show route protocol bgp table inet.0 1.1.1.0/24 exact detail"
+    )
+    assert (
+        build_command("juniper_junos", QueryType.BGP_ROUTE, "2001:db8::/32")
+        == "show route protocol bgp table inet6.0 2001:db8::/32 exact detail"
+    )
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [
+        ("cisco_ios", "show bgp ipv4 unicast 1.1.1.1"),
+        ("cisco_xe", "show bgp ipv4 unicast 1.1.1.1"),
+        ("cisco_xr", "show bgp ipv4 unicast 1.1.1.1"),
+        ("arista_eos", "show ip bgp 1.1.1.1"),
+        ("huawei", "display bgp routing-table 1.1.1.1"),
+    ],
+)
+def test_other_platforms_bare_ip_unchanged(platform: str, expected: str) -> None:
+    # Platforms without an LPM override fall back to ``_COMMAND_TABLE``.
+    # This test guards against accidental dispatch changes for vendors whose
+    # standard BGP commands already do LPM on a bare IP (Cisco, Arista, Huawei).
+    assert build_command(platform, QueryType.BGP_ROUTE, "1.1.1.1") == expected
+
+
 # --- Source-IP injection ------------------------------------------------------
 
 
@@ -123,6 +200,84 @@ def test_huawei_source_uses_dash_a() -> None:
 def test_sixwind_os_source_uses_source_keyword() -> None:
     cmd = build_command("sixwind_os", QueryType.PING, "8.8.8.8", source_ip="10.0.0.1")
     assert cmd == "cmd ping 8.8.8.8 count 6 source 10.0.0.1"
+
+
+# --- Optional flags: no_resolve -----------------------------------------------
+
+
+def test_junos_traceroute_v4_no_resolve_appended() -> None:
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=True)
+    assert cmd.endswith(" no-resolve")
+    assert cmd.startswith("traceroute monitor 8.8.8.8 ")
+
+
+def test_junos_traceroute_v6_no_resolve_appended() -> None:
+    cmd = build_command(
+        "juniper_junos", QueryType.TRACEROUTE, "2001:4860:4860::8888", no_resolve=True
+    )
+    assert "inet6" in cmd
+    assert cmd.endswith(" no-resolve")
+
+
+def test_no_resolve_with_source_ip_both_appended() -> None:
+    cmd = build_command(
+        "juniper_junos",
+        QueryType.TRACEROUTE,
+        "8.8.8.8",
+        source_ip="10.0.0.1",
+        no_resolve=True,
+    )
+    # Both flags present; order is source then no-resolve (insertion order in
+    # build_command), but the test asserts containment, not strict order, to
+    # leave room for future flag-ordering tweaks without breaking.
+    assert " source 10.0.0.1" in cmd
+    assert " no-resolve" in cmd
+
+
+def test_no_resolve_false_does_not_append() -> None:
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=False)
+    assert "no-resolve" not in cmd
+
+
+def test_no_resolve_default_is_off() -> None:
+    """Belt-and-braces: omitting the kwarg must equal no_resolve=False."""
+    cmd = build_command("juniper_junos", QueryType.TRACEROUTE, "8.8.8.8")
+    assert "no-resolve" not in cmd
+
+
+def test_no_resolve_silently_ignored_on_unsupported_platform() -> None:
+    """Cisco IOS doesn't have a no_resolve entry yet — flag must be a no-op,
+    not raise. The deploy-wide env knob has to work across mixed fleets."""
+    cmd = build_command("cisco_ios", QueryType.TRACEROUTE, "8.8.8.8", no_resolve=True)
+    assert cmd == "traceroute 8.8.8.8"
+
+
+def test_no_resolve_ignored_on_bgp_route() -> None:
+    """no_resolve only meaningful for traceroute; BGP_ROUTE entries don't
+    declare it, so the flag is a no-op there too."""
+    cmd = build_command("juniper_junos", QueryType.BGP_ROUTE, "8.8.8.0/24", no_resolve=True)
+    assert "no-resolve" not in cmd
+
+
+# --- Capability introspection -------------------------------------------------
+
+
+def test_supported_optional_flags_junos_traceroute() -> None:
+    flags = supported_optional_flags("juniper_junos", QueryType.TRACEROUTE)
+    assert flags == {"source", "no_resolve"}
+
+
+def test_supported_optional_flags_junos_ping_lacks_no_resolve() -> None:
+    """ping no-resolve is a separate Junos flag — not yet wired, so capability
+    must reflect that to keep UI/audit honest."""
+    flags = supported_optional_flags("juniper_junos", QueryType.PING)
+    assert "source" in flags
+    assert "no_resolve" not in flags
+
+
+def test_supported_optional_flags_unknown_pair_returns_empty() -> None:
+    flags = supported_optional_flags("nokia_sros", QueryType.PING)
+    assert flags == set()
 
 
 # --- Errors -------------------------------------------------------------------

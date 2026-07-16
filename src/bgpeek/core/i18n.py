@@ -108,6 +108,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "error_private_ip": "Private IP address — query not available",
         "error_bogon": "Reserved IP address — query not available",
         "error_prefix_too_specific": "Prefix too specific (max /{v4} for IPv4, /{v6} for IPv6)",
+        "error_prefix_too_broad": "Prefix too broad (min /{v4} for IPv4, /{v6} for IPv6)",
         "error_invalid_target": "Invalid IP address or hostname",
         "error_dns_failed": "Could not resolve hostname",
         "error_device_not_found": "Device not found",
@@ -125,6 +126,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "no_output": "No output — route not found or empty response",
         "network_not_in_table": "Network not in table",
         "network_not_in_table_hint": "The router has no BGP entry for this prefix.",
+        "lpm_hidden_title": "Match hidden at your output level",
+        "lpm_hidden_hint": "The router matched this address to a more-specific prefix than is shown publicly. Privileged roles see the full entry.",
         # Admin panel
         "admin": "Admin",
         "looking_glass": "Looking Glass",
@@ -213,6 +216,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_users_password": "Password",
         "admin_users_password_hint": "Minimum 8 characters.",
         "admin_users_username_immutable": "Username is immutable after creation.",
+        "admin_users_username_hint": "3-255 characters. Letters, digits, and . _ + @ - only. Must start and end with a letter or digit.",
         "admin_users_cannot_delete_self": "You cannot delete your own account.",
         "admin_users_key_title": "API key generated",
         "admin_users_key_subtitle": "A new API key has been generated for user",
@@ -312,6 +316,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "admin_devices_health_unknown_hint": "Ещё не было успешных сессий с устройством. Статус обновится после первого успешного запроса или пробы.",
         "admin_devices_junos_source_warning": "Большинству Junos-устройств в looking-glass режиме нужен явный source IP. Без него ping/trace может уйти через служебный интерфейс и отфильтроваться uRPF на аплинке. Сохранить всё равно можно — это предупреждение, не блокировка.",
         "admin_saving": "Сохраняем…",
+        "lpm_hidden_title": "Совпадение скрыто на вашем уровне вывода",
+        "lpm_hidden_hint": "Роутер сопоставил этот адрес с более специфичным префиксом, чем показывается публично. Привилегированные роли видят полную запись.",
     },
 }
 

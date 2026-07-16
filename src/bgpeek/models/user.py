@@ -4,10 +4,73 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
+from bgpeek.core.scopes import validate_scope_string, warn_unknown_actions
 from bgpeek.models._common import TrimmedOptStr, TrimmedStr
+
+# Username constraints — applied to admin-driven creation/update only.
+# LDAP/OIDC upserts (`upsert_ldap_user`, `upsert_oidc_user`) pass the IdP-
+# supplied identifier straight to SQL and skip these checks: the IdP is
+# authoritative for naming, and we cannot retroactively reject a `sub` claim
+# that the directory already issued. `LoginRequest` also stays unrestricted
+# so existing accounts whose names predate this rule can still authenticate.
+USERNAME_MIN_LENGTH = 3
+USERNAME_MAX_LENGTH = 255
+# Alphanumeric plus chars common in service-account and email-style names
+# (`.`, `_`, `+`, `@`, `-`). Must start AND end with alphanumeric — keeps
+# audit-log lines unambiguous and rejects edge-only punctuation like `.foo`
+# or `foo-` that tends to come from copy-paste mistakes.
+USERNAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._+@-]*[A-Za-z0-9]$"
+
+
+def _validate_scope_list(v: Any) -> list[str] | None:
+    """Reject malformed scope strings; warn on unknown actions.
+
+    ``None`` passes through (legacy role-based authz). Empty list is allowed
+    semantically (deny-all) but practically meaningless — it would lock the
+    user out of every protected endpoint. We accept it without comment;
+    operators who set it have a reason (e.g. temporarily neutralise a key
+    without deleting the row to preserve audit history).
+    """
+    if v is None:
+        return None
+    if not isinstance(v, list):
+        raise ValueError("allowed_actions must be a list of strings or null")
+    cleaned: list[str] = []
+    for s in v:
+        if not isinstance(s, str):
+            raise ValueError(f"scope must be a string, got {type(s).__name__}")
+        if not validate_scope_string(s):
+            raise ValueError(
+                f"invalid scope format: {s!r} "
+                f"(expected 'resource:action' or 'resource:*' or '*'; "
+                f"see core/scopes.py)"
+            )
+        cleaned.append(s)
+    warn_unknown_actions(cleaned)
+    return cleaned
+
+
+# Pydantic validator that DB code can apply when reading an asyncpg JSONB
+# value. asyncpg returns JSONB as `str`; this BeforeValidator parses the
+# string into the Python list before the field type check runs. Models that
+# only ever construct from API payloads (UserCreate, UserUpdate) skip this
+# helper — ``v`` is already a list there.
+def _parse_jsonb_list(v: Any) -> Any:
+    if isinstance(v, str):
+        import json
+
+        return json.loads(v)
+    return v
+
+
+AllowedActions = Annotated[
+    list[str] | None,
+    BeforeValidator(_parse_jsonb_list),
+]
 
 
 class UserRole(StrEnum):
@@ -22,7 +85,11 @@ class UserRole(StrEnum):
 class UserBase(BaseModel):
     """Fields shared by create / read variants."""
 
-    username: TrimmedStr = Field(min_length=1, max_length=255)
+    username: TrimmedStr = Field(
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     email: TrimmedOptStr = None
     role: UserRole = UserRole.PUBLIC
     enabled: bool = True
@@ -41,14 +108,36 @@ class UserCreate(UserBase):
     # `api_key` is a shared secret — keep exactly what the caller sent, even
     # if it has incidental whitespace. Length constraint already blocks "   ".
     api_key: str | None = Field(default=None, min_length=32, max_length=128)
+    allowed_actions: list[str] | None = None
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def _check_actions(cls, v: Any) -> list[str] | None:
+        return _validate_scope_list(v)
 
 
 class UserUpdate(BaseModel):
-    """Payload for partial updates. All fields optional."""
+    """Payload for partial updates. All fields optional.
+
+    ``allowed_actions`` is **deliberately not** a field on this model. The
+    generic ``crud.update_user`` path skips the subsumption guard, and a
+    scoped caller using a Phase 2 PATCH endpoint that piped the body
+    straight through ``UserUpdate`` would be able to widen their own
+    scopes silently. Phase 2 will introduce a dedicated
+    ``UserActionsUpdate`` payload + ``update_user_actions`` CRUD function
+    with the subsumption check baked in. Bodies sent here that include
+    ``allowed_actions`` raise 422 (``extra="forbid"``) — a clean refusal,
+    not a silent strip.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    username: TrimmedOptStr = Field(default=None, min_length=1, max_length=255)
+    username: TrimmedOptStr = Field(
+        default=None,
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     email: TrimmedOptStr = None
     role: UserRole | None = None
     enabled: bool | None = None
@@ -59,7 +148,11 @@ class UserCreateLocal(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    username: TrimmedStr = Field(min_length=1, max_length=255)
+    username: TrimmedStr = Field(
+        min_length=USERNAME_MIN_LENGTH,
+        max_length=USERNAME_MAX_LENGTH,
+        pattern=USERNAME_PATTERN,
+    )
     # Passwords are preserved verbatim; silently stripping whitespace could
     # desynchronise the stored hash from what the user types at the login form.
     password: str = Field(min_length=8, max_length=128)
@@ -76,6 +169,20 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
+class PasswordResetRequest(BaseModel):
+    """Payload for admin-driven password reset.
+
+    Min/max bounds match :class:`UserCreateLocal.password` so the same
+    server-generated token is accepted by both endpoints. Verbatim — no
+    whitespace stripping — to keep the stored hash identical to what the
+    user types at the login form.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class User(UserBase):
     """User as stored in PostgreSQL."""
 
@@ -87,6 +194,13 @@ class User(UserBase):
     password_hash: str | None = None
     created_at: datetime
     last_login_at: datetime | None = None
+    # asyncpg returns JSONB as a string — the BeforeValidator parses it once
+    # so callers always see a list (or None for legacy users).
+    allowed_actions: AllowedActions = None
+    # Per-user JWT invalidation epoch. Internal field — deliberately NOT on
+    # UserAdmin/UserPublic. Bumped on admin password reset / enabled=false;
+    # `_resolve_jwt` rejects tokens whose `iat` predates this timestamp.
+    sessions_valid_after: datetime | None = None
 
 
 class UserPublic(BaseModel):
@@ -113,6 +227,7 @@ class UserAdmin(BaseModel):
     enabled: bool
     created_at: datetime
     last_login_at: datetime | None = None
+    allowed_actions: AllowedActions = None
 
 
 class UserCreated(UserAdmin):

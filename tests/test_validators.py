@@ -11,6 +11,8 @@ from bgpeek.core.validators import (
     BOGONS_V6,
     DEFAULT_MAX_PREFIX_V4,
     DEFAULT_MAX_PREFIX_V6,
+    DEFAULT_MIN_PREFIX_V4,
+    DEFAULT_MIN_PREFIX_V6,
     TargetValidationError,
     diagnostic_target_rejection,
     is_bogon,
@@ -18,6 +20,7 @@ from bgpeek.core.validators import (
     is_non_global_unicast_v6,
     is_unspecified_host,
     parse_target,
+    prefix_too_broad,
     prefix_too_specific,
     validate_target,
 )
@@ -26,6 +29,8 @@ from bgpeek.core.validators import (
 def test_constants_defaults() -> None:
     assert DEFAULT_MAX_PREFIX_V4 == 24
     assert DEFAULT_MAX_PREFIX_V6 == 48
+    assert DEFAULT_MIN_PREFIX_V4 == 0
+    assert DEFAULT_MIN_PREFIX_V6 == 0
     assert IPv4Network("10.0.0.0/8") in BOGONS_V4
     assert IPv6Network("fe80::/10") in BOGONS_V6
 
@@ -58,8 +63,6 @@ def test_validate_target_passes(value: str, expected: IPv4Network | IPv6Network)
         ("100.64.0.1", "bogon"),
         ("224.0.0.1", "bogon"),
         ("1.1.1.0/25", "too specific"),
-        ("8.8.8.8", "too specific"),
-        ("8.8.8.8/32", "too specific"),
         ("2001:db8::/32", "bogon"),
         ("fe80::/10", "bogon"),
         ("2001:4860::/64", "too specific"),
@@ -128,6 +131,69 @@ def test_prefix_too_specific_custom_thresholds() -> None:
     assert prefix_too_specific(IPv4Network("8.8.8.0/24"), max_v4=23) is True
     assert prefix_too_specific(IPv6Network("2001::/48"), max_v6=32) is True
     assert prefix_too_specific(IPv4Network("8.8.0.0/16"), max_v4=16) is False
+
+
+@pytest.mark.parametrize(
+    ("value", "min_v4", "min_v6", "expected"),
+    [
+        # IPv4: /7 is below min /8, /8 is the boundary, /24 is well above
+        (IPv4Network("0.0.0.0/7"), 8, 0, True),
+        (IPv4Network("0.0.0.0/8"), 8, 0, False),
+        (IPv4Network("10.0.0.0/24"), 8, 0, False),
+        # IPv6: /15 is below min /16, /16 is the boundary, /32 is well above
+        (IPv6Network("::/15"), 0, 16, True),
+        (IPv6Network("2001::/16"), 0, 16, False),
+        (IPv6Network("2001:db8::/32"), 0, 16, False),
+        # Default min=0 always passes (every prefix is >= 0)
+        (IPv4Network("0.0.0.0/0"), 0, 0, False),
+        (IPv6Network("::/0"), 0, 0, False),
+    ],
+)
+def test_prefix_too_broad(
+    value: IPv4Network | IPv6Network, min_v4: int, min_v6: int, expected: bool
+) -> None:
+    assert prefix_too_broad(value, min_v4=min_v4, min_v6=min_v6) is expected
+
+
+def test_validate_target_min_prefix_rejects_broad() -> None:
+    # IPv4 /4 is broader than min /8 — must raise "prefix too broad"
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("128.0.0.0/4", min_v4=8)
+    assert "too broad" in excinfo.value.reason
+
+    # IPv6 /4 inside global unicast is broader than min /16
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("2000::/4", min_v6=16)
+    assert "too broad" in excinfo.value.reason
+
+
+def test_validate_target_min_prefix_boundary_passes() -> None:
+    # /8 and /16 are the boundaries themselves — must pass when equal to min
+    # Use a non-bogon /8 (1.0.0.0/8) and a global-unicast /16
+    assert validate_target("1.0.0.0/8", min_v4=8) == IPv4Network("1.0.0.0/8")
+    assert validate_target("2001::/16", min_v6=16) == IPv6Network("2001::/16")
+
+
+def test_validate_target_min_prefix_default_disabled() -> None:
+    # Default DEFAULT_MIN_PREFIX_* = 0 — broad prefixes pass when caller does
+    # not opt in (preserves backward compatibility for callers other than the
+    # BGP query path, which passes settings.min_prefix_*).
+    assert validate_target("128.0.0.0/4") == IPv4Network("128.0.0.0/4")
+    assert validate_target("2000::/4") == IPv6Network("2000::/4")
+
+
+def test_validate_target_default_route_distinct_from_too_broad() -> None:
+    # 0.0.0.0/0 must keep its specific "default route" reason even when
+    # min_v4 would also reject it — semantics matter (operators read the error).
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("0.0.0.0/0", min_v4=8)
+    assert "default route" in excinfo.value.reason
+    assert "too broad" not in excinfo.value.reason
+
+
+def test_validate_target_min_zero_disables_check() -> None:
+    # Explicit min_v4=0 must accept anything (subject to bogon/default checks)
+    assert validate_target("128.0.0.0/4", min_v4=0) == IPv4Network("128.0.0.0/4")
 
 
 @pytest.mark.parametrize(
@@ -222,6 +288,50 @@ def test_validate_target_custom_thresholds() -> None:
     assert result == IPv4Network("8.8.8.0/25")
     with pytest.raises(TargetValidationError):
         validate_target("8.8.8.0/24", max_v4=23)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["8.8.8.8", "1.1.1.1", "8.8.8.8/32", "2001:4860:4860::8888", "2606:4700:4700::1111/128"],
+)
+def test_validate_target_accepts_bare_host_by_default(value: str) -> None:
+    """Bare host addresses (/32, /128) bypass prefix-too-specific by default.
+
+    This is the LPM-lookup intent: the router resolves the bare address to its
+    covering prefix. Output filter still enforces max_v4/max_v6 on the response.
+    """
+    result = validate_target(value)
+    assert result.prefixlen in (32, 128)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["8.8.8.8", "8.8.8.8/32", "2001:4860:4860::8888", "2001:4860:4860::8888/128"],
+)
+def test_validate_target_rejects_bare_host_when_flag_off(value: str) -> None:
+    """When accept_bare_ip=False, host addresses are treated like any
+    explicit prefix and rejected by the cutoff. Pre-v1.3.2 behavior."""
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target(value, accept_bare_ip=False)
+    assert "too specific" in excinfo.value.reason
+
+
+def test_validate_target_flag_does_not_bypass_bogon_or_default() -> None:
+    """accept_bare_ip only affects the prefix-length check —
+    bogon/default/unspecified validation still applies."""
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("10.0.0.1", accept_bare_ip=True)
+    assert "bogon" in excinfo.value.reason
+    with pytest.raises(TargetValidationError) as excinfo:
+        validate_target("0.0.0.0", accept_bare_ip=True)  # noqa: S104
+    assert "unspecified" in excinfo.value.reason
+
+
+def test_validate_target_flag_does_not_affect_explicit_prefixes() -> None:
+    """An explicit /25 is still rejected even with the flag on — only bare
+    hosts (/32, /128) are exempt from the cutoff."""
+    with pytest.raises(TargetValidationError):
+        validate_target("8.8.8.0/25", accept_bare_ip=True)
 
 
 @pytest.mark.parametrize(

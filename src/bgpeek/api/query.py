@@ -5,13 +5,15 @@ from __future__ import annotations
 import re
 import uuid
 from pathlib import Path
+from urllib.parse import urlencode
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from bgpeek.config import settings
-from bgpeek.core.auth import authenticate, guest_user, optional_auth
+from bgpeek.core.audit_helpers import request_ctx
+from bgpeek.core.auth import guest_user, optional_auth, scope_gate, scoped_endpoint
 from bgpeek.core.parallel import execute_parallel
 from bgpeek.core.query import QueryExecutionError, execute_query
 from bgpeek.core.rate_limit import rate_limit_query
@@ -51,6 +53,12 @@ def _friendly_error(detail: str, t: dict[str, str]) -> str:
         template = t.get("error_prefix_too_specific", detail)
         try:
             return template.format(v4=settings.max_prefix_v4, v6=settings.max_prefix_v6)
+        except (KeyError, IndexError):
+            return template
+    if "too broad" in lower:
+        template = t.get("error_prefix_too_broad", detail)
+        try:
+            return template.format(v4=settings.min_prefix_v4, v6=settings.min_prefix_v6)
         except (KeyError, IndexError):
             return template
     if "subnet mask not allowed" in lower:
@@ -99,18 +107,18 @@ def _ssh_key_path() -> Path | None:
 
 
 @router.post("/api/query", response_model=QueryResponse)
+@scoped_endpoint("query:execute")
 async def api_query(
     request: Request,
     body: QueryRequest,
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> QueryResponse:
     """Execute a looking glass query (JSON API)."""
     try:
         result = await execute_query(
             body,
-            source_ip=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
+            **request_ctx(request),
             user_id=_real_user_id(caller),
             username=caller.username,
             user_role=caller.role.value,
@@ -174,8 +182,7 @@ async def htmx_query(
     try:
         result = await execute_query(
             body,
-            source_ip=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
+            **request_ctx(request),
             user_id=_real_user_id(caller),
             username=caller.username if caller else None,
             user_role=caller.role.value if caller else None,
@@ -227,17 +234,17 @@ async def htmx_query(
 
 
 @router.post("/api/query/multi", response_model=MultiQueryResponse)
+@scoped_endpoint("query:execute")
 async def api_multi_query(
     request: Request,
     body: MultiQueryRequest,
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
     _rl: None = Depends(rate_limit_query),  # noqa: B008
 ) -> MultiQueryResponse:
     """Execute a query against multiple devices in parallel (JSON API)."""
     response = await execute_parallel(
         body,
-        source_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        **request_ctx(request),
         user_id=_real_user_id(caller),
         username=caller.username,
         user_role=caller.role.value,
@@ -303,8 +310,7 @@ async def htmx_multi_query(
 
     response = await execute_parallel(
         body,
-        source_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        **request_ctx(request),
         user_id=_real_user_id(caller),
         username=caller.username if caller else None,
         user_role=caller.role.value if caller else None,
@@ -383,14 +389,25 @@ async def result_page(
     request: Request,
     result_id: uuid.UUID,
     user: User | None = Depends(optional_auth),  # noqa: B008
-) -> HTMLResponse:
-    """Render a standalone HTML page for a shared result."""
+) -> Response:
+    """Render a standalone HTML page for a shared result.
+
+    Anonymous callers are bounced through ``/auth/login?next=…`` so they can
+    sign in and land back on the same permalink. Authenticated callers who
+    can't see the result get a 404 — never 403 — so result-IDs can't be
+    enumerated by status code.
+    """
     stored = await get_result(get_pool(), result_id)
-    if stored is not None and not _may_view_stored_result(stored, user):
-        stored = None
+    if stored is None or not _may_view_stored_result(stored, user):
+        if user is None:
+            target = f"/result/{result_id}"
+            return RedirectResponse(
+                url=f"/auth/login?{urlencode({'next': target})}",
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Result not found or expired.")
     role = user.role.value if user else None
-    if stored is not None:
-        stored = filter_stored_result(stored, role)
+    stored = filter_stored_result(stored, role)
     return templates.TemplateResponse(
         request=request,
         name="result_page.html",
@@ -406,8 +423,9 @@ async def result_page(
 
 
 @router.get("/api/results", response_model=list[StoredResult])
+@scoped_endpoint("query:history:read")
 async def api_list_results(
-    caller: User = Depends(authenticate),  # noqa: B008
+    caller: User = Depends(scope_gate),  # noqa: B008
 ) -> list[StoredResult]:
     """List recent results for the authenticated user."""
     results = await list_results(get_pool(), user_id=_real_user_id(caller))

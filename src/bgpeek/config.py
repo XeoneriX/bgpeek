@@ -202,6 +202,22 @@ class Settings(BaseSettings):
         le=128,
         description="Longest IPv6 prefix length accepted at validation and kept in filtered output.",
     )
+    min_prefix_v4: int = Field(
+        default=8,
+        ge=0,
+        le=32,
+        description="Shortest IPv4 prefix length accepted at validation. /0..7 stress the router by walking the full DFZ and are rejected as overly broad. Set to 0 to disable.",
+    )
+    min_prefix_v6: int = Field(
+        default=16,
+        ge=0,
+        le=128,
+        description="Shortest IPv6 prefix length accepted at validation. Set to 0 to disable.",
+    )
+    accept_bare_ip: bool = Field(
+        default=True,
+        description="Accept bare host addresses (e.g. 8.8.8.8) as BGP query targets. The router performs longest-prefix-match and returns whichever covering prefix exists; the output filter still enforces BGPEEK_MAX_PREFIX_V4/V6 on the response, so the prefix-length invariant holds. Set to false to restore pre-v1.3.2 behavior (bare IPs rejected as 'too specific').",
+    )
 
     # --- SSH ---
     ssh_username: str = Field(
@@ -220,6 +236,18 @@ class Settings(BaseSettings):
     )
     ssh_timeout_traceroute: int = Field(
         default=120, description="SSH timeout for traceroute commands"
+    )
+    traceroute_no_resolve: bool = Field(
+        default=False,
+        description=(
+            "Append the per-platform `no-resolve` (or equivalent) flag to "
+            "every traceroute command, suppressing reverse-DNS lookup of "
+            "intermediate hops. Default off to preserve OSS-friendly "
+            "behaviour; operators who prefer numeric output by default "
+            "(faster, less noisy) flip this in their .env. Platforms whose "
+            "traceroute syntax doesn't expose a no-resolve flag silently "
+            "ignore the setting."
+        ),
     )
     ssh_known_hosts_policy: str = Field(
         default="auto-add",
@@ -404,6 +432,24 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"default_lang={self.default_lang!r} is not in enabled_languages="
                 f"{list(enabled)}; add it or change default_lang"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_prefix_bounds(self) -> "Settings":
+        """`min_prefix_*` must not exceed `max_prefix_*`, otherwise every BGP query
+        is rejected (lower bound bites before the upper) and the misconfiguration
+        looks like a code bug to the operator.
+        """
+        if self.min_prefix_v4 > self.max_prefix_v4:
+            raise ValueError(
+                f"min_prefix_v4={self.min_prefix_v4} > max_prefix_v4={self.max_prefix_v4}; "
+                f"every IPv4 BGP target would be rejected"
+            )
+        if self.min_prefix_v6 > self.max_prefix_v6:
+            raise ValueError(
+                f"min_prefix_v6={self.min_prefix_v6} > max_prefix_v6={self.max_prefix_v6}; "
+                f"every IPv6 BGP target would be rejected"
             )
         return self
 

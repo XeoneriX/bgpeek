@@ -64,6 +64,21 @@ def test_cache_key_varies_by_device() -> None:
     assert k1 != k2
 
 
+def test_cache_key_varies_by_user_role() -> None:
+    req = _make_request()
+    k_admin = _cache_key(req, user_role="admin")
+    k_noc = _cache_key(req, user_role="noc")
+    k_public = _cache_key(req, user_role="public")
+    k_anon = _cache_key(req, user_role=None)
+    assert len({k_admin, k_noc, k_public, k_anon}) == 4
+
+
+def test_cache_key_anonymous_is_default() -> None:
+    """Calling `_cache_key` without a role matches calling it with ``None``."""
+    req = _make_request()
+    assert _cache_key(req) == _cache_key(req, user_role=None)
+
+
 async def test_get_cached_returns_none_when_redis_unavailable() -> None:
     with patch("bgpeek.core.cache.get_redis", side_effect=RuntimeError):
         result = await get_cached(_make_request())
@@ -107,6 +122,39 @@ async def test_get_set_roundtrip() -> None:
 async def test_set_cached_noop_when_redis_unavailable() -> None:
     with patch("bgpeek.core.cache.get_redis", side_effect=RuntimeError):
         await set_cached(_make_request(), _make_response())
+
+
+async def test_admin_cached_response_does_not_leak_to_public() -> None:
+    """Regression: privileged callers bypass the output filter, so their cached
+    response contains unfiltered prefixes and attributes. A subsequent public
+    hit on the same target must miss the cache rather than serve the admin
+    payload — the role-scoped key guarantees isolation."""
+    store: dict[str, str] = {}
+    mock_redis = AsyncMock()
+
+    async def mock_set(key: str, value: str, ex: int | None = None) -> None:
+        store[key] = value
+
+    async def mock_get(key: str) -> str | None:
+        return store.get(key)
+
+    mock_redis.set = mock_set
+    mock_redis.get = mock_get
+
+    req = _make_request()
+    admin_response = _make_response()
+    admin_response.filtered_output = "8.8.8.0/28 via 10.0.0.1  # privileged view"
+
+    with patch("bgpeek.core.cache.get_redis", return_value=mock_redis):
+        await set_cached(req, admin_response, user_role="admin")
+        public_hit = await get_cached(req, user_role="public")
+        anon_hit = await get_cached(req, user_role=None)
+        admin_roundtrip = await get_cached(req, user_role="admin")
+
+    assert public_hit is None
+    assert anon_hit is None
+    assert admin_roundtrip is not None
+    assert admin_roundtrip.filtered_output == admin_response.filtered_output
 
 
 async def test_invalidate_device_scans_and_deletes() -> None:
