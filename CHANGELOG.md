@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`pyasn1>=0.6.4`** — CVE-2026-59885 and CVE-2026-59886 (both HIGH): denial of service via a crafted ASN.1 OBJECT IDENTIFIER and via crafted ASN.1 REAL values. Reaches bgpeek transitively through `ldap3`, so the decoder only sees attacker-influenced bytes on deployments with LDAP authentication enabled, where a hostile or compromised directory server could hang the worker handling the bind. Carried as an explicit direct floor alongside the other transitive pins so a lock regen cannot regress it.
+
 ## [1.4.1] - 2026-07-16
 
 ### Security

@@ -64,6 +64,7 @@ dependencies = [
     "click>=8.3.3",                   # PYSEC-2026-2132
     "msgpack>=1.2.1",                 # GHSA-6v7p-g79w-8964: out-of-bounds read / crash
     "joserfc>=1.6.8",                 # CVE-2026-49852: HS256/384/512 verify accepts empty HMAC key (authlib transitive)
+    "pyasn1>=0.6.4",                  # CVE-2026-59885/59886: DoS via crafted ASN.1 OID / REAL (ldap3 transitive)
 ]
 
 [project.optional-dependencies]
