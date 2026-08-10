@@ -57,7 +57,7 @@ dependencies = [
     "structlog>=24.4.0",
     "prometheus-fastapi-instrumentator>=7.1.0",
     # Crypto
-    "cryptography>=48.0.1",           # GHSA-537c-gmf6-5ccf: vulnerable OpenSSL bundled in wheels (+ earlier 6 CVE)
+    "cryptography>=50.0.0",           # CVE-2026-69247: PKCS#7 Bleichenbacher oracle (+ GHSA-537c-gmf6-5ccf OpenSSL in wheels, earlier 6 CVE)
     "python-multipart>=0.0.31",       # CVE-2026-42561/53538/53539/53540: DoS via unbounded headers/parts
     # Transitive pins carried as explicit direct floors so the security scan
     # cannot regress if a lock regen re-resolves them lower.
