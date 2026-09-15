@@ -14,16 +14,13 @@ jobs:
       - run: uv sync --extra dev
       # Ignored vulns — all either unfixable upstream or not reachable at runtime.
       # Review this list on every dependency sweep and drop entries once a fix lands.
-      #   pip (CVE-2026-3219, PYSEC-2026-196, PYSEC-2026-2876): pip is a build tool,
-      #     never invoked by bgpeek at runtime; the container image ships no pip step.
       #   paramiko (PYSEC-2026-2858): no fixed release published upstream; netmiko
       #     pins the vulnerable range. Accepted residual risk — SSH targets are the
       #     operator's own routers, not attacker-controlled servers (see SECURITY_MODEL.md).
+      # Dropped 2026-09-15: the three pip entries (CVE-2026-3219, PYSEC-2026-196,
+      #   PYSEC-2026-2876) are all fixed by pip 26.2, now floored in the dev extra.
       - run: >-
           uv run pip-audit
-          --ignore-vuln CVE-2026-3219
-          --ignore-vuln PYSEC-2026-196
-          --ignore-vuln PYSEC-2026-2876
           --ignore-vuln PYSEC-2026-2858
       - run: uv run bandit -c bandit.yaml -ll -r src/
 

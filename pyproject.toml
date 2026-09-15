@@ -65,6 +65,9 @@ dependencies = [
     "msgpack>=1.2.1",                 # GHSA-6v7p-g79w-8964: out-of-bounds read / crash
     "joserfc>=1.6.8",                 # CVE-2026-49852: HS256/384/512 verify accepts empty HMAC key (authlib transitive)
     "pyasn1>=0.6.4",                  # CVE-2026-59885/59886: DoS via crafted ASN.1 OID / REAL (ldap3 transitive)
+    "sqlparse>=0.6.0",                # CVE-2026-59893/54284/71491/84305: quadratic-CPU DoS in lexer,
+                                      # grouping and reindent; CVE-2026-59894: unescaped backslash lets
+                                      # SQL break out of generated python/php snippets (yoyo transitive)
 ]
 
 [project.optional-dependencies]
@@ -81,6 +84,10 @@ dev = [
     # Security
     "pip-audit>=2.7.3",
     "bandit>=1.9.4",
+    # pip is pulled in by pip-audit, never shipped in the runtime image. 26.2 clears every
+    # open pip advisory: CVE-2026-13346 (arbitrary write via doubly-encoded index URLs),
+    # CVE-2026-8643 (entry-point path traversal), CVE-2026-6357, CVE-2026-3219.
+    "pip>=26.2",
     # Pre-commit
     "pre-commit>=4.5.1",
 ]
