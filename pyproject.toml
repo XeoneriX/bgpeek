@@ -84,7 +84,8 @@ dev = [
     # Security
     "pip-audit>=2.7.3",
     "bandit>=1.9.4",
-    # pip is pulled in by pip-audit, never shipped in the runtime image. 26.2 clears every
+    # pip is pulled in by pip-audit and is not installed into the runtime venv (the base
+    # image's own system pip is separate and never invoked by bgpeek). 26.2 clears every
     # open pip advisory: CVE-2026-13346 (arbitrary write via doubly-encoded index URLs),
     # CVE-2026-8643 (entry-point path traversal), CVE-2026-6357, CVE-2026-3219.
     "pip>=26.2",
