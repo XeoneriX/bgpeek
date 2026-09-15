@@ -1,0 +1,40 @@
+name: Install Trivy
+description: >-
+  Install the Trivy binary pinned in .github/trivy/Dockerfile, verified against
+  the SLSA provenance published by Trivy's release workflow.
+
+runs:
+  using: composite
+  steps:
+    - name: Download, verify and install Trivy
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      # Why not aquasecurity/setup-trivy: its contrib/install.sh resolves the release
+      # tag over unauthenticated github.com and reports "unable to find '<tag>'" when
+      # the runner IP is rate-limited (broke security.yml 2026-08-24..09-14). gh uses
+      # the job token instead.
+      #
+      # Why verify: in March 2026 (GHSA-69fq-xp46-6x23) trivy's tags and release
+      # artifacts were hijacked. The provenance check pins the tarball to Trivy's
+      # release workflow *and* to the exact tag, so a swapped asset or an attestation
+      # from a different tag fails here. It cannot catch a malicious build published
+      # by a compromised release workflow itself; the Dependabot cooldown is the
+      # defence for that.
+      run: |
+        set -euo pipefail
+        manifest="$GITHUB_WORKSPACE/.github/trivy/Dockerfile"
+        version=$(sed -n 's|^FROM ghcr\.io/aquasecurity/trivy:\([0-9][0-9.]*\)$|\1|p' "$manifest")
+        if [ -z "$version" ]; then
+          echo "::error file=.github/trivy/Dockerfile::could not parse the Trivy version from the FROM line"
+          exit 1
+        fi
+        tarball="trivy_${version}_Linux-64bit.tar.gz"
+
+        gh release download "v${version}" --repo aquasecurity/trivy \
+          --pattern "$tarball" --dir "$RUNNER_TEMP"
+        gh attestation verify "$RUNNER_TEMP/$tarball" --repo aquasecurity/trivy \
+          --signer-workflow aquasecurity/trivy/.github/workflows/reusable-release.yaml \
+          --source-ref "refs/tags/v${version}"
+        tar -xzf "$RUNNER_TEMP/$tarball" -C /usr/local/bin trivy
+        trivy --version

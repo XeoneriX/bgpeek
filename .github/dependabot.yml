@@ -20,11 +20,30 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Don't propose an action release until it has been public for a week. Hijacked
+    # tags (tj-actions 2025, trivy-action 2026-03) were caught and reverted within
+    # days; security updates ignore cooldown, so real fixes still arrive at once.
+    cooldown:
+      default-days: 7
     groups:
       actions-minor-and-patch:
         update-types:
           - minor
           - patch
+        # Security scanners run with repo secrets in scope: keep them in their own
+        # PRs so they are reviewed by hand (see dependabot-auto-merge.yml).
+        exclude-patterns:
+          - "aquasecurity/*"
     labels:
       - dependencies
       - github-actions
+
+  # Trivy scanner binary, pinned via the FROM line in .github/trivy/Dockerfile.
+  - package-ecosystem: docker
+    directory: /.github/trivy
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    labels:
+      - dependencies

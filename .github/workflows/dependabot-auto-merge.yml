@@ -6,6 +6,9 @@ name: Dependabot auto-merge
 #   - minor updates for dev-only Python dependencies
 #
 # Major updates and runtime dependency minors still require manual review.
+# Anything from aquasecurity/ (trivy-action, the trivy image) is never auto-merged:
+# the scanner runs with repo secrets in scope and was hijacked once already
+# (GHSA-69fq-xp46-6x23).
 
 on: pull_request
 
@@ -23,7 +26,9 @@ jobs:
         uses: dependabot/fetch-metadata@v3
 
       - name: Enable auto-merge for patch updates
-        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        if: >-
+          steps.meta.outputs.update-type == 'version-update:semver-patch'
+          && !contains(steps.meta.outputs.dependency-names, 'aquasecurity/')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -33,6 +38,7 @@ jobs:
         if: >-
           steps.meta.outputs.update-type == 'version-update:semver-minor'
           && steps.meta.outputs.package-ecosystem == 'github_actions'
+          && !contains(steps.meta.outputs.dependency-names, 'aquasecurity/')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

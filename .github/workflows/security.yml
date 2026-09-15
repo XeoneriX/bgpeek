@@ -5,12 +5,6 @@ on:
     - cron: '0 8 * * 1'  # Monday 8 AM
   workflow_dispatch:
 
-env:
-  # Trivy scanner binary. Bump together with aquasecurity/trivy-action below.
-  # Deliberately not named TRIVY_VERSION: the trivy CLI reads TRIVY_*-prefixed env vars
-  # as flags, and `--version` is a real one.
-  TRIVY_INSTALL_VERSION: v0.74.0
-
 jobs:
   audit:
     runs-on: ubuntu-latest
@@ -34,21 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Trivy
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # setup-trivy shells out to trivy's contrib/install.sh, which resolves the release
-        # tag over *unauthenticated* github.com and fails with "unable to find '<tag>'" the
-        # moment the runner IP is rate-limited (broke this workflow 2026-08-24..09-14).
-        # `gh` uses GITHUB_TOKEN, so it gets an authenticated quota. The action's own DB
-        # cache step is unaffected by skip-setup-trivy.
-        run: |
-          gh release download "$TRIVY_INSTALL_VERSION" --repo aquasecurity/trivy \
-            --pattern 'trivy_*_Linux-64bit.tar.gz' --dir "$RUNNER_TEMP"
-          tar -xzf "$RUNNER_TEMP"/trivy_*_Linux-64bit.tar.gz -C /usr/local/bin trivy
-          trivy --version
+      # Version lives in .github/trivy/Dockerfile (tracked by Dependabot); the action
+      # verifies provenance before installing. skip-setup-trivy below relies on it.
+      - uses: ./.github/actions/install-trivy
       - name: Trivy filesystem scan (HIGH+CRITICAL deps)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           skip-setup-trivy: 'true'
           scan-type: fs
@@ -61,21 +45,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Trivy
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # setup-trivy shells out to trivy's contrib/install.sh, which resolves the release
-        # tag over *unauthenticated* github.com and fails with "unable to find '<tag>'" the
-        # moment the runner IP is rate-limited (broke this workflow 2026-08-24..09-14).
-        # `gh` uses GITHUB_TOKEN, so it gets an authenticated quota. The action's own DB
-        # cache step is unaffected by skip-setup-trivy.
-        run: |
-          gh release download "$TRIVY_INSTALL_VERSION" --repo aquasecurity/trivy \
-            --pattern 'trivy_*_Linux-64bit.tar.gz' --dir "$RUNNER_TEMP"
-          tar -xzf "$RUNNER_TEMP"/trivy_*_Linux-64bit.tar.gz -C /usr/local/bin trivy
-          trivy --version
+      # Version lives in .github/trivy/Dockerfile (tracked by Dependabot); the action
+      # verifies provenance before installing. skip-setup-trivy below relies on it.
+      - uses: ./.github/actions/install-trivy
       - name: Trivy IaC + Dockerfile scan (HIGH+CRITICAL)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           skip-setup-trivy: 'true'
           scan-type: config
