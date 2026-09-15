@@ -51,6 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
       tini \
     && rm -rf /var/lib/apt/lists/* \
+    # The base image's system pip is never used at runtime (bgpeek runs from
+    # /opt/venv, which has no pip) but still shows up in image scans with its
+    # own advisories. Remove it, and the bundled wheel so `python -m ensurepip`
+    # cannot put a known-vulnerable pip back.
+    && PIP_ROOT_USER_ACTION=ignore python3 -m pip uninstall -y -q pip \
+    && rm -f /usr/local/lib/python3*/ensurepip/_bundled/pip-*.whl \
     && groupadd -g 1000 bgpeek \
     && useradd -u 1000 -g bgpeek -s /bin/sh -m bgpeek
 
