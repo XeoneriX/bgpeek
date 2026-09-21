@@ -61,6 +61,9 @@ dependencies = [
     "python-multipart>=0.0.31",       # CVE-2026-42561/53538/53539/53540: DoS via unbounded headers/parts
     # Transitive pins carried as explicit direct floors so the security scan
     # cannot regress if a lock regen re-resolves them lower.
+    "anyio>=4.14.2",                  # CVE-2026-63374: TLSStream IDNA 2003 hostname encoding
+                                      # enables TLS certificate spoofing; CVE-2026-64847: process-pool
+                                      # worker hangs on undrained stderr (httpx/starlette transitive)
     "click>=8.3.3",                   # PYSEC-2026-2132
     "msgpack>=1.2.1",                 # GHSA-6v7p-g79w-8964: out-of-bounds read / crash
     "joserfc>=1.6.8",                 # CVE-2026-49852: HS256/384/512 verify accepts empty HMAC key (authlib transitive)
