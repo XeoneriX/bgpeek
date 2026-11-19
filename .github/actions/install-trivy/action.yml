@@ -1,6 +1,6 @@
 name: Install Trivy
 description: >-
-  Install the Trivy binary pinned in .github/trivy/Dockerfile, verified against
+  Install the Trivy binary pinned in tools/trivy/Dockerfile, verified against
   the SLSA provenance published by Trivy's release workflow.
 
 runs:
@@ -23,10 +23,10 @@ runs:
       # defence for that.
       run: |
         set -euo pipefail
-        manifest="$GITHUB_WORKSPACE/.github/trivy/Dockerfile"
+        manifest="$GITHUB_WORKSPACE/tools/trivy/Dockerfile"
         version=$(sed -n 's|^FROM ghcr\.io/aquasecurity/trivy:\([0-9][0-9.]*\)$|\1|p' "$manifest")
         if [ -z "$version" ]; then
-          echo "::error file=.github/trivy/Dockerfile::could not parse the Trivy version from the FROM line"
+          echo "::error file=tools/trivy/Dockerfile::could not parse the Trivy version from the FROM line"
           exit 1
         fi
         tarball="trivy_${version}_Linux-64bit.tar.gz"
