@@ -8,7 +8,7 @@
 #
 # Keep the FROM line exactly in this shape (no digest, no stage name): the
 # install action parses it with an anchored sed expression.
-FROM ghcr.io/aquasecurity/trivy:0.74.0
+FROM ghcr.io/aquasecurity/trivy:0.76.2
 
 # Never built, but security.yml's trivy-config job scans every Dockerfile in the
 # repo and flags a missing non-root USER (DS-0002, HIGH).

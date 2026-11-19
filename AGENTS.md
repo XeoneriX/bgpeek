@@ -20,16 +20,16 @@ src/bgpeek/
   models/     Pydantic schemas
   ui/         Jinja2 routes
   templates/  Server-rendered HTML
-  static/     Committed Tailwind CSS + JS
-migrations/   Alembic — schema only, no operator data
+  static/     Tailwind source CSS and committed JS
+migrations/   yoyo SQL migrations, no operator data
 scripts/      Seed examples, admin helpers
 tests/        pytest + pytest-asyncio
 ```
 
 ## Hard rules
 
-- **No SPA / no npm runtime build.** Tailwind CSS is pre-built and committed. HTMX + server-rendered HTML is a deliberate choice.
-- **No operator-specific data in tracked files.** Migrations ship `CREATE TABLE` only; seeds use documentation ASNs (RFC 5398) and well-known communities. Real ASNs, customer prefixes, or internal community taxonomies must be loaded via the admin API at deploy time.
+- **No SPA / no npm runtime build.** Tailwind CSS is built with the standalone CLI. HTMX + server-rendered HTML is a deliberate choice.
+- **No operator-specific data in tracked files.** Migrations must exclude operator-specific data; seeds use documentation ASNs (RFC 5398) and well-known communities. Real ASNs, customer prefixes, or internal community taxonomies must be loaded via the admin API at deploy time.
 - **Per-role output filtering is first-class.** Public users must not see more-specific prefixes (default: hide /25-/32 for v4, equivalent for v6). Do not regress this. Write denial-path tests when touching auth, rate limiting, or filtering.
 - **No secrets in code.** All secrets via env vars; `.env.example` is the source of truth.
 - **Type hints required.** Mypy must pass on `src/`.
@@ -38,11 +38,10 @@ tests/        pytest + pytest-asyncio
 ## Workflow
 
 ```bash
-make install    # uv sync --extra dev
-make dev        # docker compose up (Postgres + Redis + app + tailwind watcher)
-make migrate    # Alembic migrations
-make css        # one-shot Tailwind CSS build (via Docker, no host binary)
-make check      # lint + format-check + mypy + test (run before every PR)
+uv sync --locked --extra dev  # Install dependencies from uv.lock
+docker compose -f compose.yaml -f compose.dev.yaml up -d  # App, Postgres, Redis, and Tailwind watcher
+make migrate    # Apply yoyo migrations to the configured database
+make check      # Lint, formatting, type checks, and tests
 ```
 
 In dev, a `tailwind` container watches `src/bgpeek/templates/**/*.html` and

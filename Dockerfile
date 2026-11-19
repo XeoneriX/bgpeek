@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -22,11 +22,9 @@ WORKDIR /app
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY pyproject.toml uv.lock* README.md ./
+COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv venv /opt/venv && \
-    uv sync --frozen --no-install-project --no-dev 2>/dev/null \
-      || uv pip install --python /opt/venv/bin/python --no-cache -r pyproject.toml
+    uv sync --locked --no-install-project --no-dev
 
 COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \

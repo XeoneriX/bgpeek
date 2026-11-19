@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
@@ -38,9 +38,9 @@ updates:
       - dependencies
       - github-actions
 
-  # Trivy scanner binary, pinned via the FROM line in .github/trivy/Dockerfile.
+  # Trivy scanner binary, pinned via the FROM line in tools/trivy/Dockerfile.
   - package-ecosystem: docker
-    directory: /.github/trivy
+    directory: /tools/trivy
     schedule:
       interval: weekly
     cooldown:
